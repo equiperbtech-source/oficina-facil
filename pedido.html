@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
+  <title>Pedir orçamento</title>
+  <meta name="description" content="Peça o orçamento do conserto do seu celular. Respondemos pelo WhatsApp.">
+  <meta property="og:title" content="Pedir orçamento">
+  <meta property="og:description" content="Conte o problema do seu aparelho e receba o orçamento pelo WhatsApp.">
+  <meta property="og:image" content="/assets/os-512.png">
+  <link rel="icon" href="/assets/os-192.png">
+  <link rel="apple-touch-icon" href="/assets/os-180.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .wrap { max-width: 560px; margin: 0 auto; padding: max(18px, env(safe-area-inset-top)) 16px calc(40px + var(--safe-b)); }
+    .logo { display: block; width: 150px; margin: 4px auto 6px; filter: drop-shadow(0 10px 40px rgba(var(--gold-rgb), .25)); border-radius: 12px; }
+    .urg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .urg .chip-opt { padding: 12px 6px; }
+    .urg .chip-opt small { font-weight: 500; font-size: 11px; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="wrap" id="pd">
+    <img class="logo" src="/assets/os-192.png" alt="">
+    <div class="empty">Carregando...</div>
+  </div>
+  <div id="modal-root"></div>
+  <div id="toast-root"></div>
+  <script src="/js/config.js"></script>
+  <script src="/js/i18n.js"></script>
+  <script src="/js/i18n-es.js"></script>
+  <script src="/js/vendor/supabase.js"></script>
+  <script src="/js/util.js"></script>
+  <script src="/js/tema.js"></script>
+  <script src="/js/pedido.js"></script>
+</body>
+</html>

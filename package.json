@@ -1,0 +1,23 @@
+{
+  "name": "oficina-simples",
+  "private": true,
+  "type": "module",
+  "description": "Oficina Simples: app da oficina (front estático) + funções do servidor em /api (Vercel). O build (scripts/build.cjs) publica só o front, minificado, em dist/.",
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "esbuild": "0.24.2",
+    "pg": "8.13.1",
+    "ws": "8.18.0"
+  },
+  "scripts": {
+    "build": "node scripts/build.cjs",
+    "migracoes": "node scripts/juntar-migracoes.cjs",
+    "banco:ligar": "bash tests/db/pg.sh start",
+    "banco:desligar": "bash tests/db/pg.sh stop",
+    "teste": "playwright test",
+    "teste:servidor": "node tests/servidor/supabase-falso.cjs"
+  }
+}

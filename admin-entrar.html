@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="icon" href="/assets/os-192.png">
+  <title>Oficina Simples · Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="login"><form class="login-box" id="f">
+    <img src="/assets/os-192.png" alt="Oficina Simples" style="width:84px;display:block;margin:0 auto 12px;border-radius:20px">
+    <h1>Oficina Simples <span class="gold">admin</span></h1>
+    <p class="muted" style="margin:0 0 20px">Acesso restrito ao administrador da plataforma.</p>
+    <div class="field"><label>E-mail</label><input class="input" name="email" type="email" required autocomplete="username"></div>
+    <div class="field"><label>Senha</label><input class="input" name="senha" type="password" required autocomplete="current-password"></div>
+    <button class="btn primary block" id="b">Entrar</button>
+    <p class="small red" id="erro"></p>
+  </form></div>
+  <div id="modal-root"></div><div id="toast-root"></div>
+  <script src="/js/config.js"></script>
+  <script src="/js/vendor/supabase.js"></script>
+  <script>
+    // Entra com o Supabase e guarda o token num cookie de curta duração, conferido pelo middleware em /admin
+    const c = window.OFICINA_CONFIG || {};
+    const sb = c.supabaseUrl ? supabase.createClient(c.supabaseUrl, c.supabaseAnonKey) : null;
+    const erro = t => { document.getElementById('erro').textContent = t; };
+    const entrar = async s => {
+      const { data: ok } = await sb.rpc('sou_super_admin');
+      if (ok !== true) return erro('Esta conta não é administradora.');
+      // se já tentamos há pouco e o servidor devolveu para cá, não fica num vai-e-volta: mostra o motivo
+      const ult = Number(sessionStorage.getItem('os_admin_tentativa') || 0);
+      if (Date.now() - ult < 15000) { sessionStorage.removeItem('os_admin_tentativa'); return erro('Sua conta é administradora, mas o servidor não confirmou o acesso. Na Vercel, confira a variável SUPABASE_URL em Production e faça Redeploy.'); }
+      sessionStorage.setItem('os_admin_tentativa', String(Date.now()));
+      document.cookie = `os_admin=${encodeURIComponent(s.access_token)}; Path=/; Max-Age=3600; SameSite=Strict${location.protocol === 'https:' ? '; Secure' : ''}`;
+      location.href = '/admin';
+    };
+    if (!sb) erro('Supabase não configurado.');
+    else sb.auth.getSession().then(({ data }) => { if (data.session) entrar(data.session); });
+    document.getElementById('f').onsubmit = async e => {
+      e.preventDefault(); erro('');
+      const f = e.target, b = document.getElementById('b'); b.disabled = true;
+      const { data, error } = await sb.auth.signInWithPassword({ email: f.email.value.trim(), password: f.senha.value });
+      b.disabled = false;
+      if (error) return erro('E-mail ou senha incorretos.');
+      entrar(data.session);
+    };
+  </script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+# Segredos e variáveis de ambiente: nunca vão para o GitHub
+.env
+.env.*
+!.env.example
+# Dependências e builds
+node_modules/
+.vercel/
+# Backups e dumps do banco (contêm dados de clientes)
+*.dump
+*.backup
+backup*/
+dumps/
+# Saída do build (gerada na Vercel)
+dist/
+
+# Testes
+.pgtest/
+test-results/
+playwright-report/
+tests/prints/*.png
+!tests/prints/.gitkeep
