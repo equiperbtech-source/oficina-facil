@@ -128,7 +128,7 @@ const Vitrine = {
     const d = new Date(retirada), L = this.dados.loja, zap = foneWhats(L.whatsapp || '');
     $('#vt').classList.remove('com-cart');
     $('#vt').innerHTML = `<div class="card center" style="margin-top:40px;padding:32px 20px">
-      <div class="stat-icon" style="justify-content:center;margin-bottom:10px"><div class="ic" style="color:var(--green);background:rgba(74,222,128,.12)">${icon('checkCircle')}</div></div>
+      <div class="stat-icon" style="justify-content:center;margin-bottom:10px"><div class="ic" style="color:var(--green);background:rgba(22,163,74,.12)">${icon('checkCircle')}</div></div>
       <h2 style="margin:0 0 6px">Pedido #${r.numero} enviado!</h2>
       <p class="muted" style="margin:0 0 6px">${esc(t('A {loja} já recebeu e vai separar seus itens.', { loja: L.nome || t('loja') }))}</p>
       <p style="margin:0 0 18px">Retirada: <b class="gold">${d.toLocaleDateString(loc(), { weekday: 'long', day: '2-digit', month: '2-digit' })} às ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}</b><br>Total: <b>${money(r.total)}</b> (pago na loja)</p>

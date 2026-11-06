@@ -23,5 +23,12 @@ test('TUDO.sql roda duas vezes sem erro e os planos estão certos', async ({}, i
   // nenhuma tabela do schema public sem RLS
   const semRls = psql(['-tA', '-c', "select string_agg(relname, ',') from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity"], banco).trim();
   expect(semRls).toBe('');
+  // migração 28 (tema claro): o reverter roda 2x, a migração volta 2x, e o padrão novo é azul/branco
+  const RAIZ = path.join(__dirname, '..', '..');
+  const arq = f => psql(['-f', path.join(RAIZ, 'supabase', 'saas', f)], banco);
+  expect(() => { arq('28_tema_claro_reverter.sql'); arq('28_tema_claro_reverter.sql'); }).not.toThrow();
+  expect(psql(['-tA', '-c', "select column_default from information_schema.columns where table_name = 'lojas_tema' and column_name = 'cor_primaria'"], banco)).toContain('#d4af37');
+  expect(() => { arq('28_tema_claro.sql'); arq('28_tema_claro.sql'); }).not.toThrow();
+  expect(psql(['-tA', '-c', "select column_default from information_schema.columns where table_name = 'lojas_tema' and column_name = 'cor_primaria'"], banco)).toContain('#1D4ED8');
   psql(['-c', `drop database if exists ${banco} with (force)`]);
 });

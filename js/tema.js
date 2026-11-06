@@ -14,7 +14,11 @@ const PLATAFORMA = {
   marcaTexto() { return '<span data-no-i18n>Oficina <span class="gold">Simples</span></span>'; },
 };
 const FONTES = ['Inter', 'Roboto', 'Poppins', 'Montserrat', 'Open Sans', 'Lato'];
-const TEMA_PADRAO = { cor_primaria: '#d4af37', cor_secundaria: '#b8860b', cor_fundo: '#000000', fonte: 'Inter' };
+const TEMA_PADRAO = { cor_primaria: '#1D4ED8', cor_secundaria: '#1E40AF', cor_fundo: '#FFFFFF', fonte: 'Inter' };
+// variáveis que o tema da oficina pode trocar (sem tema: valem as do css/style.css)
+const TEMA_VARS = ['--gold', '--gold-2', '--gold-3', '--gold-rgb', '--gold-soft', '--gold-soft-2', '--gold-grad', '--btn-texto',
+  '--bg', '--bg-2', '--card', '--card-2', '--line', '--line-2', '--line-input', '--text', '--muted', '--muted-2', '--sombra-rgb',
+  '--green', '--red', '--blue', '--orange', '--purple', '--glass-hi'];
 
 const Tema = {
   atual: null,
@@ -45,18 +49,25 @@ const Tema = {
   aplicar(t, { favicon = true } = {}) {
     const c = { ...TEMA_PADRAO, ...(t || {}) };
     this.atual = t || null;
-    const fundo = c.cor_fundo, texto = this.textoSobre(fundo), claro = texto === '#000000';
-    const [r, g, b] = this.rgb(c.cor_primaria);
-    const v = {
-      '--gold': c.cor_primaria, '--gold-2': this.misturar(c.cor_primaria, '#ffffff', 0.35), '--gold-3': c.cor_secundaria,
-      '--gold-rgb': `${r}, ${g}, ${b}`, '--gold-soft': `rgba(${r}, ${g}, ${b}, .12)`,
-      '--gold-grad': `linear-gradient(135deg, ${this.misturar(c.cor_primaria, '#ffffff', 0.45)} 0%, ${c.cor_primaria} 45%, ${c.cor_secundaria} 100%)`,
-      '--btn-texto': this.textoSobre(c.cor_primaria),
-      '--bg': fundo, '--bg-2': this.misturar(fundo, texto, 0.04), '--card': this.misturar(fundo, texto, 0.07), '--card-2': this.misturar(fundo, texto, 0.1),
-      '--line': this.misturar(fundo, texto, 0.15), '--line-2': this.misturar(fundo, texto, 0.2),
-      '--text': texto, '--muted': this.misturar(texto, fundo, claro ? 0.4 : 0.36), '--muted-2': this.misturar(texto, fundo, 0.55),
-    };
     const root = document.documentElement.style;
+    TEMA_VARS.forEach(k => root.removeProperty(k));
+    const fundo = c.cor_fundo, texto = this.textoSobre(fundo), claro = texto === '#000000';
+    const padrao = String(c.cor_primaria).toLowerCase() === TEMA_PADRAO.cor_primaria.toLowerCase() && String(fundo).toLowerCase() === '#ffffff';
+    const [r, g, b] = this.rgb(c.cor_primaria);
+    // tema padrão: só os tokens do CSS. Cor própria da oficina: troca o destaque e, se o fundo não for
+    // branco, calcula os cinzas a partir do fundo (fundo escuro ganha as cores de status claras).
+    const v = padrao ? {} : {
+      '--gold': c.cor_primaria, '--gold-2': c.cor_primaria, '--gold-3': c.cor_secundaria,
+      '--gold-rgb': `${r}, ${g}, ${b}`, '--gold-soft': this.misturar(fundo, c.cor_primaria, claro ? 0.08 : 0.16), '--gold-soft-2': this.misturar(fundo, c.cor_primaria, claro ? 0.16 : 0.26),
+      '--gold-grad': `linear-gradient(180deg, ${this.misturar(c.cor_primaria, '#ffffff', 0.12)} 0%, ${c.cor_primaria} 100%)`,
+      '--btn-texto': this.textoSobre(c.cor_primaria),
+    };
+    if (!padrao && String(fundo).toLowerCase() !== '#ffffff') Object.assign(v, {
+      '--bg': fundo, '--bg-2': this.misturar(fundo, texto, 0.04), '--card': claro ? fundo : this.misturar(fundo, texto, 0.07), '--card-2': this.misturar(fundo, texto, claro ? 0.04 : 0.1),
+      '--line': this.misturar(fundo, texto, 0.12), '--line-2': this.misturar(fundo, texto, 0.2), '--line-input': this.misturar(fundo, texto, 0.42),
+      '--text': claro ? '#0F172A' : '#FFFFFF', '--muted': this.misturar(texto, fundo, 0.36), '--muted-2': this.misturar(texto, fundo, 0.42),
+      ...(claro ? {} : { '--sombra-rgb': '0, 0, 0', '--glass-hi': 'rgba(255, 255, 255, .14)', '--green': '#4ade80', '--red': '#f87171', '--blue': '#60a5fa', '--orange': '#fb923c', '--purple': '#c084fc' }),
+    });
     for (const [k, val] of Object.entries(v)) root.setProperty(k, val);
     document.querySelector('meta[name=theme-color]')?.setAttribute('content', fundo);
     // fonte (lista fechada)

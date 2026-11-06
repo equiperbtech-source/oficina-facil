@@ -18,7 +18,7 @@ const OSPage = {
       </div>
       <div class="grid grid-2 mb">
         <div class="stat"><div class="label">Total em bancada</div><div class="value">${ativos.length} <span class="pill gold" style="font-size:13px;vertical-align:middle">Ativos</span></div></div>
-        <div class="stat"><div class="label row between">Valor estimado <button class="icon-btn" style="width:28px;height:28px" onclick="OSPage.st.showValor=!OSPage.st.showValor;App.refresh()">${icon(this.st.showValor ? 'eye' : 'eyeOff', 'sm')}</button></div><div class="value gold">${this.st.showValor ? money(ativos.reduce((s, o) => s + Store.osTotal(o), 0)) : 'R$ •••••'}</div></div>
+        <div class="stat"><div class="label row between">Valor estimado <button class="icon-btn mini" onclick="OSPage.st.showValor=!OSPage.st.showValor;App.refresh()">${icon(this.st.showValor ? 'eye' : 'eyeOff', 'sm')}</button></div><div class="value gold">${this.st.showValor ? money(ativos.reduce((s, o) => s + Store.osTotal(o), 0)) : 'R$ •••••'}</div></div>
         <div class="stat"><div class="label">${icon('xCircle', 'sm')} Total interrompido</div><div class="value">${os.filter(o => o.status === 'interrompido').length}</div></div>
         <div class="stat"><div class="label">${icon('clock', 'sm')} Tempo médio em bancada</div><div class="value">${finalizadas.length ? (media < 1 ? '< 1 dia' : media.toFixed(1).replace('.', ',') + ' dias') : '—'}</div></div>
       </div>
@@ -658,7 +658,7 @@ Pages.bancada = {
         ${escondidas.length ? `<div class="row wrap mt" style="gap:6px"><span class="small muted">Cards tirados:</span>${escondidas.map(k => `<button class="btn sm" data-bc-volta="${k}">${icon('plus', 'sm')} ${esc(OS_STATUS[k].label)}</button>`).join('')}</div>` : ''}
         <div class="section-title" style="margin-top:18px">Novo card</div>
         ${criadas < Etapas.MAX ? `<div class="row" style="gap:8px"><input class="input grow" id="bc-novo" maxlength="24" placeholder="Ex: Aguardando cliente"><button class="btn primary" id="bc-add">${icon('plus')} Adicionar</button></div>
-        <div class="row mt" style="gap:10px">${Etapas.CORES.map(c => `<button type="button" data-bc-cor="${c}" style="width:30px;height:30px;border-radius:50%;background:${c};border:3px solid ${c === cor ? '#fff' : 'transparent'};cursor:pointer" title="Cor"></button>`).join('')}</div>`
+        <div class="row mt" style="gap:10px">${Etapas.CORES.map(c => `<button type="button" data-bc-cor="${c}" style="width:44px;height:44px;border-radius:50%;background:${c};border:3px solid #fff;box-shadow:0 0 0 2px ${c === cor ? 'var(--text)' : 'var(--line-2)'};cursor:pointer" title="Cor"></button>`).join('')}</div>`
           : `<div class="small muted">Até ${Etapas.MAX} cards criados pela loja.</div>`}`;
       // ordem
       const mover = (i, d) => { const l = [...OS_ATIVOS]; const j = i + d; if (j < 0 || j >= l.length) return; [l[i], l[j]] = [l[j], l[i]]; Etapas.salvar(e => { e.ordem = l; }); desenhar(); };

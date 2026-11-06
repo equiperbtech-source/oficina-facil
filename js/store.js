@@ -11,12 +11,12 @@ const PADROES_IDIOMA = {
 const DB_KEY = 'oficina_db_v1';
 
 const OS_STATUS = {
-  analise:   { label: 'Em Análise',       icon: 'alertCircle', color: '#60a5fa', pill: 'blue' },
-  peca:      { label: 'Aguardando Peça',  icon: 'box',         color: '#fb923c', pill: 'orange' },
-  servico:   { label: 'Em Serviço',       icon: 'wrench',      color: '#c084fc', pill: 'purple' },
-  concluido: { label: 'Concluído',        icon: 'checkCircle', color: '#4ade80', pill: 'green' },
-  pago:      { label: 'Pago',             icon: 'dollar',      color: '#d4af37', pill: 'gold' },
-  interrompido: { label: 'Interrompido',  icon: 'xCircle',     color: '#f87171', pill: 'red' },
+  analise:   { label: 'Em Análise',       icon: 'alertCircle', color: '#2563EB', pill: 'blue' },
+  peca:      { label: 'Aguardando Peça',  icon: 'box',         color: '#C2410C', pill: 'orange' },
+  servico:   { label: 'Em Serviço',       icon: 'wrench',      color: '#7C3AED', pill: 'purple' },
+  concluido: { label: 'Concluído',        icon: 'checkCircle', color: '#137333', pill: 'green' },
+  pago:      { label: 'Pago',             icon: 'dollar',      color: '#0F766E', pill: 'gold' },
+  interrompido: { label: 'Interrompido',  icon: 'xCircle',     color: '#B91C1C', pill: 'red' },
 };
 const OS_ATIVOS = ['analise', 'peca', 'servico', 'concluido'];
 /* Cards da bancada: a loja cria cards novos (ex.: "Aguardando cliente") e tira os que não usa.
@@ -26,7 +26,7 @@ const OS_ATIVOS = ['analise', 'peca', 'servico', 'concluido'];
 const ETAPAS_BASE = ['analise', 'peca', 'servico', 'concluido'];
 const ETAPAS_FIXAS = ['analise', 'concluido'];
 const Etapas = {
-  CORES: ['#f472b6', '#22d3ee', '#facc15', '#a3e635', '#f97316', '#94a3b8'],
+  CORES: ['#DB2777', '#0E7490', '#A16207', '#4D7C0F', '#C2410C', '#64748B'],   // todas com contraste AA no branco
   MAX: 8,
   cfg() {
     const e = (typeof Store !== 'undefined' && Store.s && Store.s.etapas) || {};
@@ -36,11 +36,11 @@ const Etapas = {
   aplicar() {
     const { extras, ocultas, ordem } = this.cfg();
     Object.keys(OS_STATUS).forEach(k => { if (k.startsWith('e_')) delete OS_STATUS[k]; else delete OS_STATUS[k].oculto; });
-    extras.forEach(x => { if (x && x.id && String(x.id).startsWith('e_')) OS_STATUS[x.id] = { label: String(x.label || 'Etapa'), icon: 'tag', color: x.cor || '#94a3b8', pill: '', extra: true, oculto: !!x.removida }; });
+    extras.forEach(x => { if (x && x.id && String(x.id).startsWith('e_')) OS_STATUS[x.id] = { label: String(x.label || 'Etapa'), icon: 'tag', color: x.cor || '#64748B', pill: '', extra: true, oculto: !!x.removida }; });
     ocultas.forEach(k => { if (OS_STATUS[k] && ETAPAS_BASE.includes(k) && !ETAPAS_FIXAS.includes(k)) OS_STATUS[k].oculto = true; });
     // OS num card que esta tela ainda não conhece (ex.: criado em outro aparelho): usa o nome guardado na OS
     ((typeof Store !== 'undefined' && Store.db && Store.db.os) || []).forEach(o => {
-      if (o && !OS_STATUS[o.status] && /^e_/.test(o.status || '')) OS_STATUS[o.status] = { label: o.statusNome || 'Etapa', icon: 'tag', color: o.statusCor || '#94a3b8', pill: '', extra: true, oculto: true };
+      if (o && !OS_STATUS[o.status] && /^e_/.test(o.status || '')) OS_STATUS[o.status] = { label: o.statusNome || 'Etapa', icon: 'tag', color: o.statusCor || '#64748B', pill: '', extra: true, oculto: true };
     });
     const vivo = k => OS_STATUS[k] && !OS_STATUS[k].oculto;
     const padrao = ['analise', 'peca', 'servico', ...extras.map(x => x && x.id), 'concluido'].filter(vivo);

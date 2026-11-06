@@ -71,7 +71,7 @@ const VendasPage = {
     g.innerHTML = list.map(p => {
       const inCart = this.cart.find(c => c.id === p.id)?.qtd || 0;
       return `<div class="prod-card" onclick="VendasPage.toggle('${p.id}')" style="${inCart ? 'border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold)' : ''}">
-        <div class="row between"><span class="xs muted ellipsis">${esc(p.categoria || '')}</span><button class="icon-btn" style="width:30px;height:30px" onclick="event.stopPropagation();EstoquePage.editar('produto','${p.id}')">${icon('edit', 'sm')}</button></div>
+        <div class="row between"><span class="xs muted ellipsis">${esc(p.categoria || '')}</span><button class="icon-btn mini" onclick="event.stopPropagation();EstoquePage.editar('produto','${p.id}')">${icon('edit', 'sm')}</button></div>
         <b style="line-height:1.25">${esc(p.nome)}</b>
         ${ehCelular(p) ? `<div class="row wrap" style="gap:4px">${p.seminovo ? '<span class="pill gold xs">Seminovo · 6 meses</span>' : '<span class="pill green xs">Novo</span>'}${p.statusAparelho && p.statusAparelho !== 'disponivel' && STATUS_AP[p.statusAparelho] ? `<span class="pill ${STATUS_AP[p.statusAparelho][1]} xs">${STATUS_AP[p.statusAparelho][0]}</span>` : ''}${p.armazenamento ? `<span class="pill xs">${esc(p.armazenamento)}</span>` : ''}${p.bateria ? `<span class="pill xs">🔋 ${esc(p.bateria)}</span>` : ''}</div>${p.imei || p.cor ? `<div class="xs muted ellipsis">${[p.cor, p.imei && 'IMEI ' + p.imei].filter(Boolean).map(esc).join(' · ')}</div>` : ''}` : '<span class="pill xs" style="align-self:flex-start">Acessório</span>'}
         <div class="gold bold" style="font-size:18px">${money(p.preco)}</div>
@@ -389,7 +389,7 @@ const VendasPage = {
 
   trocaHTML(v) {
     if (!v.troca) return '';
-    return `<div class="card mb" style="border-color:rgba(192,132,252,.45)"><b>${icon('repeat', 'sm')} Aparelho recebido na troca</b>
+    return `<div class="card mb" style="border-color:rgba(124,58,237,.45)"><b>${icon('repeat', 'sm')} Aparelho recebido na troca</b>
       <div class="kv"><span class="k">${esc(v.troca.nome)}${v.troca.imei ? ' · IMEI ' + esc(v.troca.imei) : ''}</span><span class="v red" style="white-space:nowrap">-${money(v.troca.valor)}</span></div>
       <div class="kv"><span class="k">${v.pago >= 0 ? 'Cliente pagou' : 'Loja devolveu'} (${FORMAS_PGTO[v.forma]})</span><span class="v gold">${money(Math.abs(v.pago))}</span></div></div>`;
   },

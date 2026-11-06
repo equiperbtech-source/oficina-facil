@@ -3,12 +3,12 @@
 const GARANTIA_REPARO_DIAS = 90;
 const FORMAS = { dinheiro: 'Dinheiro', pix: 'PIX', debito: 'Cartão de Débito', credito: 'Cartão de Crédito', transferencia: 'Transferência', outro: 'Outro' };
 const ST = {
-  analise:      { label: 'Em análise',          icon: 'search',      color: '#60a5fa', desc: 'Nosso técnico está avaliando o aparelho.' },
-  peca:         { label: 'Aguardando peça',     icon: 'box',         color: '#fb923c', desc: 'Estamos aguardando a chegada da peça para o reparo.' },
-  servico:      { label: 'Em reparo',           icon: 'wrench',      color: '#c084fc', desc: 'Seu aparelho está na bancada sendo reparado.' },
-  concluido:    { label: 'Pronto para retirada', icon: 'checkCircle', color: '#4ade80', desc: 'Reparo finalizado! Pode vir buscar seu aparelho.' },
-  pago:         { label: 'Entregue',            icon: 'shieldCheck', color: '#d4af37', desc: 'Aparelho entregue. Sua garantia está ativa.' },
-  interrompido: { label: 'Serviço interrompido', icon: 'xCircle',    color: '#f87171', desc: 'O serviço foi interrompido. Fale com a loja para mais detalhes.' },
+  analise:      { label: 'Em análise',          icon: 'search',      color: '#2563EB', desc: 'Nosso técnico está avaliando o aparelho.' },
+  peca:         { label: 'Aguardando peça',     icon: 'box',         color: '#C2410C', desc: 'Estamos aguardando a chegada da peça para o reparo.' },
+  servico:      { label: 'Em reparo',           icon: 'wrench',      color: '#7C3AED', desc: 'Seu aparelho está na bancada sendo reparado.' },
+  concluido:    { label: 'Pronto para retirada', icon: 'checkCircle', color: '#137333', desc: 'Reparo finalizado! Pode vir buscar seu aparelho.' },
+  pago:         { label: 'Entregue',            icon: 'shieldCheck', color: '#0F766E', desc: 'Aparelho entregue. Sua garantia está ativa.' },
+  interrompido: { label: 'Serviço interrompido', icon: 'xCircle',    color: '#B91C1C', desc: 'O serviço foi interrompido. Fale com a loja para mais detalhes.' },
 };
 const PASSOS = [['analise', 'Recebido'], ['servico', 'Em reparo'], ['concluido', 'Pronto'], ['pago', 'Entregue']];
 const ORDEM = { analise: 0, peca: 0, servico: 1, concluido: 2, pago: 3 };
@@ -60,7 +60,7 @@ const Track = {
   render() {
     const { os: o, loja: L = {}, cliente: c = {} } = this.dados;
     // card criado pela loja (ex.: "Aguardando cliente"): nome e cor vêm junto da OS
-    const s = ST[o.status] || (o.statusNome ? { label: String(o.statusNome), icon: 'clock', color: /^#[0-9a-f]{6}$/i.test(o.statusCor || '') ? o.statusCor : '#94a3b8', desc: 'Esta é a etapa atual do seu reparo.' } : ST.analise);
+    const s = ST[o.status] || (o.statusNome ? { label: String(o.statusNome), icon: 'clock', color: /^#[0-9a-f]{6}$/i.test(o.statusCor || '') ? o.statusCor : '#64748B', desc: 'Esta é a etapa atual do seu reparo.' } : ST.analise);
     const ordem = ORDEM[o.status] ?? (o.statusNome ? 1 : 0);
     const total = (Number(o.valor) || 0) - (Number(o.desconto) || 0);
     const inicioGar = o.concluidoEm || o.pagoEm || o.entregueEm;

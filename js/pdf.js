@@ -1,8 +1,8 @@
 /* PDF de garantia (jsPDF). Usado pelo app e pela página pública de acompanhamento.
    Recebe um objeto simples para funcionar com dados locais ou vindos do Supabase. */
 // cores do tema da loja nos PDFs (sem tema: o dourado original)
-const pdfCor = () => (typeof Tema !== 'undefined' && Tema.atual ? Tema.rgb(Tema.atual.cor_primaria) : [212, 175, 55]);
-const pdfCorEscura = () => (typeof Tema !== 'undefined' && Tema.atual ? Tema.rgb(Tema.misturar(Tema.atual.cor_secundaria, '#000000', 0.2)) : [154, 122, 16]);
+const pdfCor = () => (typeof Tema !== 'undefined' && Tema.atual ? Tema.rgb(Tema.atual.cor_primaria) : [29, 78, 216]);   // azul da Oficina Simples
+const pdfCorEscura = () => (typeof Tema !== 'undefined' && Tema.atual ? Tema.rgb(Tema.misturar(Tema.atual.cor_secundaria, '#000000', 0.2)) : [30, 64, 175]);
 
 const Pdf = {
   logo: null, logoUrl: null,
@@ -122,7 +122,7 @@ const Pdf = {
     this.moldura(doc, M - 4, 5, W - 2 * M + 8, 34);
     if (logo) try { doc.addImage(logo, /^data:image\/jpe?g/.test(logo) ? 'JPEG' : 'PNG', M, 9, 26, 26); } catch {}
     const xT = logo ? M + 31 : M;
-    doc.setTextColor(20, 20, 20); doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.text(L.nome || (typeof Tema !== 'undefined' && Tema.nome()) || 'Assistência técnica', xT, 16);
+    doc.setTextColor(20, 20, 20); doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.text(L.nome || (typeof Tema !== 'undefined' && Tema.nome()) || 'Oficina', xT, 16);
     doc.setTextColor(80, 80, 80); doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
     const info = [L.cnpj && 'CNPJ ' + L.cnpj, L.telefone, L.instagram].filter(Boolean).join('  ·  ');
     if (info) doc.text(info, xT, 23);

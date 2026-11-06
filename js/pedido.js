@@ -81,7 +81,7 @@ const Pedido = {
     const tel = this.info.telefone;
     $('#pd').innerHTML = this.topo() + `
       <div class="hero center" style="padding:30px 20px">
-        <div style="width:80px;height:80px;border-radius:50%;margin:0 auto 14px;display:grid;place-items:center;background:rgba(74,222,128,.12);color:var(--green)">${icon('checkCircle', 'lg')}</div>
+        <div style="width:80px;height:80px;border-radius:50%;margin:0 auto 14px;display:grid;place-items:center;background:rgba(22,163,74,.12);color:var(--green)">${icon('checkCircle', 'lg')}</div>
         <h2 style="margin:0 0 6px">Pedido <span class="gold">enviado!</span></h2>
         ${numero ? `<div class="pill gold" style="font-size:15px;margin:6px 0 12px">Pedido nº ${numero}</div>` : ''}
         <p class="muted" style="margin:0">Recebemos o pedido do seu <b style="color:var(--text)">${esc(d.modelo)}</b>. Em breve enviamos o orçamento no WhatsApp <b class="gold">${esc(fmtPhone(d.telefone))}</b>.</p>

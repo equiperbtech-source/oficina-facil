@@ -20,7 +20,7 @@ const EstoquePage = {
       <div class="tabs mb" id="est-tabs" style="display:inline-flex">${[['pecas', 'Peças', 'box'], ['hist', 'Histórico', 'history']].map(([k, l, ic]) => `<button data-k="${k}" class="${this.st.tab === k ? 'on' : ''}">${icon(ic, 'sm')} ${l}</button>`).join('')}</div>
       <div class="grid grid-3 mb">
         <div class="stat stat-icon"><div class="ic">${icon('layers')}</div><div><div class="label">Total de peças</div><div class="value">${pecas.length} <span class="small muted">itens</span></div></div></div>
-        <div class="stat stat-icon" style="cursor:pointer" onclick="EstoquePage.st.baixo=!EstoquePage.st.baixo;EstoquePage.list()"><div class="ic" style="color:var(--orange);background:rgba(251,146,60,.12)">${icon('alert')}</div><div><div class="label">Baixo estoque</div><div class="value">${baixo.length} <span class="small muted">itens</span></div></div></div>
+        <div class="stat stat-icon" style="cursor:pointer" onclick="EstoquePage.st.baixo=!EstoquePage.st.baixo;EstoquePage.list()"><div class="ic" style="color:var(--orange);background:rgba(217,119,6,.12)">${icon('alert')}</div><div><div class="label">Baixo estoque</div><div class="value">${baixo.length} <span class="small muted">itens</span></div></div></div>
         <div class="stat stat-icon" style="grid-column:1/-1;background:linear-gradient(135deg,var(--card),var(--bg-2));border-color:rgba(var(--gold-rgb), .35)"><div class="ic">${icon('dollar')}</div><div><div class="label">Custo do inventário</div><div class="value gold">${money(custo)}</div></div></div>
       </div>
       <div id="est-body"></div>`;

@@ -54,7 +54,7 @@ const FinPage = {
       <div class="card pad-0">
         <div class="list-head"><b>Lançamentos (${ls.length})</b><select class="input" id="fin-tipo" style="width:auto;min-height:38px;padding:6px 40px 6px 12px">${selectOpts({ '': 'Todos', receita: 'Receitas', despesa: 'Despesas' }, this.st.tipo)}</select></div>
         ${ls.slice(0, 300).map(l => `<div class="item" style="cursor:default;padding:12px 18px"><div class="row">
-          <div class="stat-icon"><div class="ic" style="width:38px;height:38px;${l.tipo === 'despesa' ? 'color:var(--red);background:rgba(248,113,113,.1)' : ''}">${icon(l.tipo === 'despesa' ? 'minus' : l.origem === 'venda' ? 'bag' : l.origem === 'os' ? 'wrench' : 'plus', 'sm')}</div></div>
+          <div class="stat-icon"><div class="ic" style="width:38px;height:38px;${l.tipo === 'despesa' ? 'color:var(--red);background:rgba(220,38,38,.1)' : ''}">${icon(l.tipo === 'despesa' ? 'minus' : l.origem === 'venda' ? 'bag' : l.origem === 'os' ? 'wrench' : 'plus', 'sm')}</div></div>
           <div class="grow"><b class="ellipsis" style="display:block">${esc(l.desc)}</b><div class="xs muted">${fmtDateTime(l.data)} · ${nomeForma(l.forma)} · ${esc(l.categoria || '')}</div></div>
           <div class="right">${l.forma === 'troca' && l.tipo === 'receita' ? `<b class="muted">${money(l.valor)}</b><div class="xs muted">não soma no faturamento</div>` : `<b class="${l.tipo === 'despesa' ? 'red' : 'gold'}">${l.tipo === 'despesa' ? '-' : '+'}${money(l.valor)}</b>${l.custo || l.taxa ? `<div class="xs muted">custo ${money((l.custo || 0) + (l.taxa || 0))}</div>` : ''}`}</div>
           ${l.origem === 'manual' ? `<button class="icon-btn" onclick="FinPage.excluir('${l.id}')">${icon('trash', 'sm')}</button>` : ''}

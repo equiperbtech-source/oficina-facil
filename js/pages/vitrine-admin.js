@@ -78,7 +78,7 @@ const VitrineAdmin = {
     const fotos = [...p.fotos];
     const desenhar = () => {
       $('#ve-fotos', el).innerHTML = fotos.map((u, i) => `<div style="position:relative;width:76px;height:76px;border-radius:10px;background:var(--bg-2) center/cover no-repeat;background-image:url('${encodeURI(u)}')">
-        <button class="icon-btn" data-rf="${i}" style="position:absolute;top:2px;right:2px;width:24px;height:24px;background:rgba(0,0,0,.7)">${icon('x', 'sm')}</button></div>`).join('')
+        <button class="icon-btn mini" data-rf="${i}" style="position:absolute;top:4px;right:4px;background:rgba(15,23,42,.7);color:#fff">${icon('x', 'sm')}</button></div>`).join('')
         + (fotos.length < 4 ? `<label class="btn" style="width:76px;height:76px;padding:0;justify-content:center">${icon('plus')}<input type="file" accept="image/png,image/jpeg,image/webp" id="ve-add" hidden></label>` : '');
       $$('[data-rf]', el).forEach(b => b.onclick = () => { fotos.splice(+b.dataset.rf, 1); desenhar(); });
       const add = $('#ve-add', el);

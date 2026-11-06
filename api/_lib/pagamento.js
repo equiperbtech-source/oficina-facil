@@ -17,16 +17,17 @@ const VALIDA = {
   hotmart: (req, _b, p, s) => hotmart.validar(req.headers, p, s),
 };
 
-// e-mail de boas-vindas da compra sem loja, no idioma da plataforma (Hotmart: espanhol)
+// e-mail de boas-vindas da compra sem oficina (branco e azul), no idioma da plataforma
+const caixaEmail = (titulo, texto, link, botao) => `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;background:#FFFFFF;color:#0F172A;border:1px solid #E3E8EF;border-top:4px solid #1D4ED8;border-radius:12px;padding:24px">
+     <div style="font-size:13px;font-weight:bold;color:#1D4ED8;margin-bottom:12px">Oficina Simples</div>
+     <h2 style="margin:0 0 10px;font-size:22px;color:#0F172A">${titulo}</h2>
+     <p style="margin:0 0 18px;font-size:15px;line-height:1.5;color:#0F172A">${texto}</p>
+     <p style="margin:0"><a href="${escHtml(link)}" style="display:inline-block;background:#1D4ED8;color:#FFFFFF;padding:14px 22px;border-radius:10px;font-weight:bold;text-decoration:none">${botao}</a></p></div>`;
 const BOAS_VINDAS = {
-  pt: (email, link) => ['Sua assinatura foi confirmada: crie o acesso da sua loja',
-    `<div style="font-family:Arial,sans-serif;max-width:520px"><h2>Bem-vindo! 🎉</h2>
-     <p>Recebemos o pagamento da sua assinatura. Falta só criar o acesso da sua loja com <b>este mesmo e-mail</b> (${escHtml(email)}): o plano é ativado na hora.</p>
-     <p><a href="${escHtml(link)}" style="display:inline-block;background:#d4af37;color:#000;padding:12px 20px;border-radius:8px;font-weight:bold;text-decoration:none">Criar minha loja</a></p></div>`],
-  es: (email, link) => ['Tu suscripción fue confirmada: crea el acceso de tu tienda',
-    `<div style="font-family:Arial,sans-serif;max-width:520px"><h2>¡Bienvenido! 🎉</h2>
-     <p>Recibimos el pago de tu suscripción. Solo falta crear el acceso de tu tienda con <b>este mismo correo</b> (${escHtml(email)}): el plan se activa al instante.</p>
-     <p><a href="${escHtml(link)}" style="display:inline-block;background:#d4af37;color:#000;padding:12px 20px;border-radius:8px;font-weight:bold;text-decoration:none">Crear mi tienda</a></p></div>`],
+  pt: (email, link) => ['Sua assinatura foi confirmada: crie o acesso da sua oficina',
+    caixaEmail('Bem-vindo! 🎉', `Recebemos o pagamento da sua assinatura. Falta só criar o acesso da sua oficina com <b>este mesmo e-mail</b> (${escHtml(email)}): o plano é ativado na hora.`, link, 'Criar minha oficina')],
+  es: (email, link) => ['Tu suscripción fue confirmada: crea el acceso de tu taller',
+    caixaEmail('¡Bienvenido! 🎉', `Recibimos el pago de tu suscripción. Solo falta crear el acceso de tu taller con <b>este mismo correo</b> (${escHtml(email)}): el plan se activa al instante.`, link, 'Crear mi taller')],
 };
 
 /* Única fonte que altera plano e situação da assinatura. Valida a origem (401 se inválida),

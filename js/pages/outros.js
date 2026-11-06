@@ -173,7 +173,7 @@ Pages.posvenda = {
       body: `<p class="small muted" style="margin-top:0">Variáveis: <b class="gold">{nome}</b> primeiro nome · <b class="gold">{aparelho}</b> · <b class="gold">{dias}</b> · <b class="gold">{loja}</b>${oferta ? ' · <b class="gold">{desconto}</b>' : ' · <b class="gold">{avaliacao}</b> link do Google'}. Use *texto* para negrito no WhatsApp.</p>
         ${field('Mensagem', `<textarea class="input" id="pm-txt" style="min-height:190px">${esc(s[md.campo] || t(md.padrao))}</textarea>`)}
         ${oferta ? field('Desconto oferecido', `<input class="input" id="pm-desc" value="${esc(s.descontoOferta || '10%')}" placeholder="Ex: 10%, R$ 15">`) : ''}
-        <div class="lbl mb">Prévia</div><div class="card" id="pm-prev" style="white-space:pre-wrap;background:#0b1a12;border-color:#1f3d2b"></div>`,
+        <div class="lbl mb">Prévia</div><div class="card" id="pm-prev" style="white-space:pre-wrap;background:#ECFDF5;border-color:#A7F3D0;color:#0F172A"></div>`,
       foot: `<button class="btn" id="pm-reset">Restaurar padrão</button><button class="btn primary" id="pm-ok">${icon('check')} Salvar</button>`,
       onMount: (el, m) => {
         const prev = () => {
@@ -371,7 +371,7 @@ ${dono ? `      <div class="card mb" id="cf-loja">
 
       <div class="card mb">
         <h3>${icon('users', 'sm')} Como o cliente <span class="gold">conheceu a loja</span></h3>
-        <div class="row wrap mb" id="cf-orig">${s.origens.map((o, i) => `<span class="pill">${esc(o)} <button class="icon-btn" style="width:20px;height:20px" data-ro="${i}">${icon('x', 'sm')}</button></span>`).join('')}</div>
+        <div class="row wrap mb" id="cf-orig">${s.origens.map((o, i) => `<span class="pill">${esc(o)} <button class="icon-btn mini" data-ro="${i}">${icon('x', 'sm')}</button></span>`).join('')}</div>
         <div class="row"><input class="input" id="cf-onome" placeholder="Nova opção"><button class="btn outline-gold" id="cf-oadd">${icon('plus')}</button></div>
       </div>
 
@@ -453,7 +453,7 @@ ${dono ? `      <div class="card mb" id="cf-loja">
         </form>` : ''}
       </div>` : ''}
 
-      ${!Cloud.enabled ? `<div class="card mb" style="border-color:rgba(251,146,60,.45)">
+      ${!Cloud.enabled ? `<div class="card mb" style="border-color:rgba(217,119,6,.45)">
         <h3>${icon('alert', 'sm')} Nuvem <span class="red">desligada</span></h3>
         <p class="small" style="margin:0">Os dados estão salvos <b>só neste aparelho e navegador</b>. Funcionários, outros celulares e outros navegadores <b>não</b> veem estas informações.</p>
         <p class="small muted">Para salvar na nuvem, ter login de funcionários e acessar de qualquer aparelho, configure o Supabase (passo a passo no README do projeto). Até lá, use <b>Baixar backup</b> com frequência.</p>
@@ -468,7 +468,7 @@ ${dono ? `      <div class="card mb" id="cf-loja">
         <button class="btn block mt" onclick="App.logout()">${icon('logout')} Sair</button>
       </div>
 
-      ${dono ? `<div class="card" style="border-color:rgba(248,113,113,.35)">
+      ${dono ? `<div class="card" style="border-color:rgba(220,38,38,.35)">
         <h3 class="red">Zona de perigo</h3>
         <button class="btn danger block" onclick="Pages.config.zerar()">${icon('trash')} Apagar todos os dados</button>
       </div>` : ''}`;

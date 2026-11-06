@@ -48,4 +48,22 @@ async function login(email, senha = 'senha123') {
   const r = await fetch(URL_SUPA + '/auth/v1/token?grant_type=password', { method: 'POST', headers: { apikey: ANON_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password: senha }) });
   return (await r.json()).access_token;
 }
-module.exports = { vigiarErros, semRolagemLateral, emailNovo, criarContaEOficina, entrar, api, login };
+// cria clientes e OS de exemplo direto pelo Store (para prints e telas que dependem de dados)
+async function semearOS(page) {
+  return page.evaluate(() => {
+    const ck = { 'Liga': 'ok', 'Tela': 'ok', 'Touch': 'nok' };
+    const mk = (nome, tel, modelo, defeito, servico, valor, status) => {
+      const c = Store.saveCliente({ nome, telefone: tel, aparelhos: [] });
+      const ap = { id: uid(), tipo: 'celular', modelo, cor: 'Prata' };
+      c.aparelhos.push(ap); Store.saveCliente(c);
+      return Store.saveOS({ clienteId: c.id, aparelho: { ...ap }, defeito, servico, valor, status, previsao: dayKey(addDays(new Date(), 2)), checklist: ck, pecas: [], garantiaDias: 90 });
+    };
+    const a = mk('Maria Souza', '48991154821', 'Onix 2019', 'Barulho na suspensão dianteira', 'Troca de amortecedores dianteiros', 850, 'servico');
+    mk('João Pereira', '48988887777', 'Honda CG 160', 'Corrente folgada', 'Troca da relação', 320, 'analise');
+    mk('Ana Lima', '48977776666', 'HB20 2021', 'Revisão dos 30 mil km', 'Revisão completa', 690, 'peca');
+    mk('Carlos Dias', '48966665555', 'Yamaha Fazer 250', 'Freio traseiro fraco', 'Troca de pastilhas', 180, 'concluido');
+    Store.tokenOS(a); Store.save();
+    return { id: a.id, numero: a.numero, token: a.token };
+  });
+}
+module.exports = { semearOS, vigiarErros, semRolagemLateral, emailNovo, criarContaEOficina, entrar, api, login };

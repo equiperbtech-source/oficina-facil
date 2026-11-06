@@ -347,6 +347,7 @@ const App = {
           ${NAV.map(([g, items]) => { const vis = items.filter(([r]) => this.rotaVisivel(r)); return vis.length ? `<div class="nav-title">${g}</div>` + vis.map(([r, l, ic]) => `<a href="#/${r}" data-r="${r}">${icon(ic)}<span>${l}</span>${this.rotaBloqueada(r) ? `<span class="nav-lock" title="${(Cloud.assinatura()?.bloqueados_teste || []).includes(this.rotaBloqueada(r)) ? 'Liberado quando você assinar' : 'Disponível em outro plano'}">${icon('lock', 'sm')}</span>` : ''}<span class="count hidden"></span></a>`).join('') : ''; }).join('')}
           <div class="nav-title">Ajuda</div>
           <a href="${this.linkSuporte()}" target="_blank" rel="noopener" class="nav-suporte">${icon('whatsapp')}<span>Falar com o suporte</span></a>
+          <a href="#" class="so-celular" onclick="event.preventDefault();App.atualizarPagina()">${icon('refresh')}<span>Atualizar o sistema</span></a>
         </nav>
         <div class="sidebar-foot">
           <div class="avatar js-ini">${esc((s.responsavel || s.loja || 'R')[0].toUpperCase())}</div>
@@ -358,12 +359,12 @@ const App = {
       <div class="shell">
         <header class="topbar">
           <button class="icon-btn menu-btn" onclick="App.openMenu()" aria-label="Menu">${icon('menu')}</button>
-          <a class="brand" href="#/dashboard"><img src="${PLATAFORMA.logo}" alt=""><span style="min-width:0;line-height:1.15"><span style="display:block;white-space:nowrap;font-size:16px">${PLATAFORMA.marcaTexto()}</span><span class="xs muted ellipsis" style="display:block;font-weight:600" data-no-i18n>${esc(Tema.nome(s.loja) || '')}</span></span></a>
+          <a class="brand" href="#/dashboard"><img src="${PLATAFORMA.logo}" alt=""><span style="min-width:0;line-height:1.15"><span style="display:block;white-space:nowrap;font-size:16px">${PLATAFORMA.marcaTexto()}</span><span class="xs muted ellipsis brand-oficina" style="display:block;font-weight:600" data-no-i18n>${esc(Tema.nome(s.loja) || '')}</span></span></a>
           <div class="spacer"></div>
           <span id="selo-teste"></span>
           ${Cloud.enabled ? I18N.botaoHTML('idioma-topo') : ''}
           ${Cloud.enabled ? `<button class="icon-btn" id="sync-ind" onclick="App.syncAgora()"></button>` : ''}
-          <button class="icon-btn" title="Atualizar o sistema" aria-label="Atualizar o sistema" onclick="App.atualizarPagina()">${icon('refresh')}</button>
+          <button class="icon-btn so-largo" title="Atualizar o sistema" aria-label="Atualizar o sistema" onclick="App.atualizarPagina()">${icon('refresh')}</button>
           <button class="icon-btn" title="Nova OS" onclick="OSPage.novaOS()">${icon('plus')}</button>
           <a class="avatar js-ini" href="#/config" title="Configurações">${esc((s.responsavel || s.loja || 'R')[0].toUpperCase())}</a>
         </header>
