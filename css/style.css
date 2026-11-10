@@ -508,3 +508,68 @@ a:hover { color: var(--gold-3); }
 }
 /* valores grandes nos cartões: diminuem no celular em vez de quebrar no meio do número */
 @media (max-width: 420px) { .stat .value { font-size: 22px; overflow-wrap: normal; } }
+
+/* ---------- Oficina: veículo, placa, checklist, combustível, itens, pátio ---------- */
+.placa-tag { display: inline-block; font: 800 13px/1.25 ui-monospace, Menlo, Consolas, monospace; letter-spacing: .06em; padding: 2px 7px; border: 1.5px solid var(--text); border-top-width: 4px; border-top-color: var(--gold); border-radius: 5px; background: #fff; color: #0F172A; white-space: nowrap; vertical-align: middle; }
+.placa-print { font: 800 16px ui-monospace, Menlo, monospace; letter-spacing: .06em; }
+.veic-chip { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; font-size: 12px; padding: 3px 8px; border-radius: 99px; background: var(--bg-2); border: 1px solid var(--line); color: var(--muted); }
+.veic-chip b { color: var(--text); font-family: ui-monospace, Menlo, monospace; letter-spacing: .04em; }
+.veic-ic { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--gold-soft); color: var(--gold); flex: none; }
+.veic-opt { flex-direction: row !important; justify-content: flex-start !important; gap: 10px; padding: 12px 14px !important; text-align: left !important; min-height: 56px; }
+.veic-card { padding: 12px 14px; }
+.seg-tipo { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.seg-tipo .chip-opt { flex-direction: row; display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; font-size: 14px; }
+.placa-input { font: 700 18px ui-monospace, Menlo, monospace; letter-spacing: .08em; text-transform: uppercase; }
+.placa-aviso { min-height: 0; margin-top: 4px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.placa-aviso.orange, .doc-aviso.orange { color: var(--orange); }
+.wz-steps { display: flex; gap: 6px; margin-bottom: 18px; }
+.wz-barra { height: 4px; border-radius: 4px; background: var(--line-2); }
+.wz-barra.on { background: var(--gold); }
+/* checklist de entrada: OK / com defeito / não verificado */
+.ck-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px 14px; }
+.ck-linha { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.ck-seg { display: inline-flex; gap: 4px; flex: none; }
+.ck-b { width: 44px; height: 44px; border-radius: 10px; border: 1px solid var(--line-2); background: var(--card); font-weight: 800; font-size: 16px; color: var(--muted); cursor: pointer; }
+.ck-b.ck-ok.on { background: #DCFCE7; border-color: #16A34A; color: #137333; }
+.ck-b.ck-nok.on { background: #FEE2E2; border-color: #DC2626; color: #B91C1C; }
+.ck-b.ck-nv.on { background: #F1F5F9; border-color: #64748B; color: #334155; }
+/* combustível: vazio, 1/4, 1/2, 3/4, cheio */
+.comb-sel { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+.comb-b { display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 52px; padding: 6px 2px; border: 1px solid var(--line-2); border-radius: 10px; background: var(--card); font-size: 11.5px; font-weight: 700; color: var(--muted); cursor: pointer; }
+.comb-barra { width: 70%; height: 10px; border-radius: 3px; border: 1.5px solid currentColor; background: linear-gradient(90deg, currentColor calc(var(--n) * 25%), transparent 0); }
+.comb-b.on { border: 2px solid var(--gold); color: var(--gold); background: var(--gold-soft); }
+/* itens da OS e do orçamento */
+.itens-ed { display: flex; flex-direction: column; gap: 12px; margin-bottom: 14px; }
+.itens-sec { border: 1px solid var(--line); border-radius: 14px; padding: 12px; background: var(--bg-2); display: flex; flex-direction: column; gap: 8px; }
+.it-linha { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.it-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px; }
+.it-grade label { display: flex; flex-direction: column; gap: 2px; font-size: 11px; font-weight: 700; color: var(--muted); }
+.it-grade .input { min-height: 44px; padding: 6px 8px; }
+.it-tot { margin: 0; }
+.it-vazio { padding: 4px 2px; }
+.hist-os { padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; margin: 6px 0; cursor: pointer; background: var(--card); }
+.hist-os:hover { border-color: rgba(var(--gold-rgb), .5); }
+.btn-grande { min-height: 56px; font-size: 16px; }
+.ob-tipos { gap: 8px; }
+.ob-tipo { display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 76px; justify-content: center; position: relative; }
+.ob-tipo input { position: absolute; opacity: 0; pointer-events: none; }
+.ob-tipo:has(input:checked) { border: 2px solid var(--gold); color: var(--gold); background: var(--gold-soft); }
+.ob-tipo:has(input:focus-visible) { outline: 2px solid var(--gold-2); outline-offset: 2px; }
+/* fotos: etiqueta e PDF */
+.ft-tag { position: absolute; left: 4px; bottom: 4px; max-width: calc(100% - 52px); font-size: 10.5px; font-weight: 700; padding: 3px 7px; border-radius: 99px; border: 0; background: rgba(15, 23, 42, .82); color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; min-height: 22px; }
+.ft-pdf { position: absolute; right: 4px; bottom: 4px; font-size: 10px; font-weight: 800; padding: 3px 6px; border-radius: 6px; border: 0; background: #1E3A8A; color: #fff; cursor: pointer; }
+.ft-th.ft-fora img { opacity: .45; }
+.ft-th.ft-fora .ft-pdf { background: #64748B; text-decoration: line-through; }
+/* pátio: barra de rolagem em cima, setas e arrastar */
+.kanban-nav { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.kanban-topo { flex: 1; overflow-x: auto; overflow-y: hidden; height: 16px; }
+.kanban-topo > div { height: 1px; }
+.kanban { cursor: grab; scrollbar-width: none; }
+.kanban::-webkit-scrollbar { display: none; }
+.kanban.arrastando { cursor: grabbing; user-select: none; }
+.kcol-pago { background: #F0FDF4; border-color: #BBF7D0; }
+.aprovar-card { border: 2px solid var(--gold); background: var(--gold-soft); }
+.prod-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+.prod-card.on { border: 2px solid var(--gold); }
+.section-h { display: flex; align-items: center; gap: 8px; margin: 18px 0 8px; font-size: 15px; }
+.aviso-plano.green { background: #F0FDF4; border-color: #86EFAC; color: #137333; }

@@ -7,9 +7,16 @@ const Pedidos = {
   naoLidos() { return Store.db.pedidos.filter(p => !p.deleted && !p.lido); },
   get(id) { return Store.db.pedidos.find(p => p.id === id); },
   link() { return Cloud.loja ? `${location.origin}/pedido/${Cloud.loja.slug || Cloud.loja.id}` : null; },
-  aparelho(p) {
-    const marca = String(p.marca || '').replace(/\s*\(.*\)/, '').split('/')[0].trim();
-    return !marca || /outra/i.test(marca) || norm(p.modelo).includes(norm(marca)) || (marca === 'Apple' && /iphone|ipad/i.test(p.modelo)) ? p.modelo : `${marca} ${p.modelo}`;
+  // "Chevrolet Onix 2019 · ABC1D23"
+  veiculo(p) {
+    const marca = String(p.marca || '').trim();
+    const nome = [!marca || norm(p.modelo).includes(norm(marca)) ? '' : marca, p.modelo, p.ano].filter(Boolean).join(' ');
+    return [nome, p.placa ? Placa.fmt(p.placa) : ''].filter(Boolean).join(' · ');
+  },
+  // veículo do pedido no formato do cadastro
+  veiculoDe(p) {
+    const v = { id: uid(), tipo: p.tipo === 'moto' ? 'moto' : 'carro', placa: Placa.norm(p.placa || ''), marca: p.marca || '', modelo: p.modelo || '', anoModelo: p.ano || '' };
+    Object.keys(v).forEach(k => { if (!v[k]) delete v[k]; }); return v;
   },
   tempo(d) {
     const min = Math.round((Date.now() - new Date(d)) / 60000);
@@ -36,7 +43,7 @@ const Pedidos = {
       <div class="row between" style="align-items:flex-start"><div class="grow" style="min-width:0">
         <div class="meta"><span class="num">PEDIDO ${p.numero || ''}</span>${p.lido ? '' : '<span class="pill gold">● Não lido</span>'}<span class="pill ${uc}">${ul}</span><span>${this.tempo(p.criadoEm)}</span></div>
         <div class="title" style="margin-top:8px">${esc(p.nome)}</div>
-        <div class="device">${icon('phone', 'sm')} ${esc(this.aparelho(p))}</div>
+        <div class="device">${icon(p.tipo === 'moto' ? 'moto' : 'car', 'sm')} <span data-no-i18n>${esc(this.veiculo(p))}</span></div>
       </div>${p.status !== 'novo' && p.status !== 'lido' ? `<span class="pill ${PEDIDO_STATUS[p.status][1]}">${PEDIDO_STATUS[p.status][0]}</span>` : ''}</div>
       ${compacto ? '' : `<div class="desc">${esc(p.defeito)}</div>`}
     </div>`;
@@ -46,7 +53,7 @@ const Pedidos = {
     const ps = this.todos();
     const link = this.link();
     return `${link ? `<div class="card mb row between wrap" style="padding:12px 16px"><div class="grow" style="min-width:0"><b>${icon('chat', 'sm')} Link para o cliente pedir orçamento</b><div class="xs muted ellipsis">${esc(link)}</div></div>
-        <div class="row"><button class="btn sm" onclick="Pedidos.copiarLink()">Copiar</button><a class="btn sm success" target="_blank" href="https://wa.me/?text=${encodeURIComponent(`Peça seu orçamento na ${Store.s.loja} pelo link: ${link}`)}">${icon('whatsapp', 'sm')}</a></div></div>`
+        <div class="row"><button class="btn sm" onclick="Pedidos.copiarLink()">Copiar</button><a class="btn sm success" target="_blank" href="https://api.whatsapp.com/send?text=${encodeURIComponent(`Peça seu orçamento na ${Store.s.loja} pelo link: ${link}`)}">${icon('whatsapp', 'sm')}</a></div></div>`
       : `<div class="info-box">${icon('info')}<span>Ligue a nuvem (Supabase) para receber pedidos de orçamento pelo link.</span></div>`}
       <div class="card pad-0"><div class="list-head"><b>${ps.length} pedido(s) · <span class="gold">${this.naoLidos().length} não lido(s)</span></b></div>
       ${ps.map(p => this.itemHTML(p)).join('') || `<div class="empty">${icon('chat')}<div>Nenhum pedido ainda. Divulgue o link no Instagram e no WhatsApp!</div></div>`}</div>`;
@@ -76,13 +83,13 @@ const Pedidos = {
         <div class="card mb">
           <div class="kv"><span class="k">Cliente</span><span class="v">${esc(p.nome)}</span></div>
           <div class="kv"><span class="k">WhatsApp</span><span class="v">${esc(fmtPhone(p.telefone))}</span></div>
-          <div class="kv"><span class="k">Marca</span><span class="v">${esc(p.marca || '—')}</span></div>
-          <div class="kv"><span class="k">Modelo</span><span class="v gold">${esc(p.modelo)}</span></div>
+          <div class="kv"><span class="k">Veículo</span><span class="v gold" data-no-i18n>${esc([p.marca, p.modelo, p.ano].filter(Boolean).join(' '))}</span></div>
+          ${p.placa ? `<div class="kv"><span class="k">Placa</span><span class="v"><b class="placa-tag" data-no-i18n>${esc(Placa.fmt(p.placa))}</b></span></div>` : ''}
         </div>
-        <div class="card mb"><div class="lbl mb">Defeito apresentado</div><div style="white-space:pre-wrap">${esc(p.defeito)}</div></div>
+        <div class="card mb"><div class="lbl mb">O que está acontecendo</div><div style="white-space:pre-wrap">${esc(p.defeito)}</div></div>
         ${orc ? `<button class="btn outline-gold block" onclick="closeAllModals();OrcPage.detalhe('${orc.id}')">${icon('card')} Ver orçamento ${orc.numero} · ${money(OrcPage.total(orc))}</button>` : ''}`,
       foot: `${p.status === 'recusado' ? '' : `<button class="btn primary" style="flex-basis:100%" onclick="Pedidos.criarOrcamento('${p.id}')">${icon('check')} ${orc ? 'Novo orçamento' : 'Aceitar e criar orçamento'}</button>`}
-        <a class="btn success" target="_blank" href="${waLink(p.telefone, `Olá ${String(p.nome).split(' ')[0]}! Aqui é da ${Store.s.loja} 📱\n\nRecebemos seu pedido de orçamento nº ${p.numero || ''} para o *${this.aparelho(p)}* (${p.defeito}).\n\nVamos analisar e já te enviamos o orçamento!`)}">${icon('whatsapp')} WhatsApp</a>
+        <a class="btn success" target="_blank" href="${waLink(p.telefone, `Olá ${String(p.nome).split(' ')[0]}! Aqui é da ${Store.s.loja} 🔧\n\nRecebemos seu pedido de orçamento nº ${p.numero || ''} para o *${this.veiculo(p)}* (${p.defeito}).\n\nVamos analisar e já te enviamos o orçamento!`)}">${icon('whatsapp')} WhatsApp</a>
         ${p.status === 'recusado' ? `<button class="btn" onclick="Pedidos.status('${p.id}','lido')">${icon('undo')} Reabrir</button>` : `<button class="btn danger" onclick="Pedidos.status('${p.id}','recusado')">${icon('xCircle')} Recusar</button>`}
         <button class="btn ghost" onclick="Pedidos.naoLido('${p.id}')">Marcar não lido</button>`,
     });
@@ -91,13 +98,14 @@ const Pedidos = {
   status(id, st) { const p = this.get(id); p.status = st; Store.save(); closeAllModals(); App.refresh(); toast(st === 'recusado' ? 'Pedido recusado' : 'Pedido reaberto'); },
   naoLido(id) { const p = this.get(id); p.lido = false; if (p.status === 'lido') p.status = 'novo'; Store.save(); closeAllModals(); App.updateNav(); App.refresh(); },
 
-  // Aceitar: abre o orçamento já preenchido com cliente, aparelho e defeito
+  // Aceitar: abre o orçamento já preenchido com cliente, veículo e reclamação
   criarOrcamento(id) {
     const p = this.get(id);
     closeAllModals();
     const tel = onlyDigits(p.telefone);
     const cli = Store.clientesAtivos().find(c => tel && onlyDigits(c.telefone).replace(/^55/, '') === tel.replace(/^55/, ''));
-    OrcPage.novo(null, { pedidoId: p.id, clienteId: cli?.id || null, nome: p.nome, telefone: tel, aparelho: this.aparelho(p), defeito: p.defeito });
+    const v = this.veiculoDe(p), ja = cli && (cli.veiculos || []).find(x => v.placa && Placa.mesma(x.placa, v.placa));
+    OrcPage.novo(null, { pedidoId: p.id, clienteId: cli?.id || null, nome: p.nome, telefone: tel, veiculo: ja || v, defeito: p.defeito });
   },
 
   async copiarLink() {

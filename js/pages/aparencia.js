@@ -1,4 +1,4 @@
-/* Aparência da loja (Configurações): logo, cores, fonte, nome, slogan, rodapé, dados da empresa e domínio próprio.
+/* Aparência da oficina (Configurações): logo, cores, fonte, nome, slogan, rodapé, dados da empresa e domínio próprio.
    Pré-visualização ao vivo no próprio app; só salva se o contraste passar na WCAG AA. */
 const Aparencia = {
   dominios: [],
@@ -6,7 +6,7 @@ const Aparencia = {
     if (!Cloud.enabled || !Cloud.loja || !Cloud.loja.tema) return '';
     const t = Cloud.loja.tema;
     return `<div class="card mb" id="cf-tema">
-      <h3>${icon('star', 'sm')} Aparência <span class="gold">da loja</span></h3>
+      <h3>${icon('star', 'sm')} Aparência <span class="gold">da oficina</span></h3>
       <p class="small muted" style="margin-top:0">Logo, cores e dados que aparecem no app, nos PDFs e nas páginas dos clientes. Mexa e veja na hora; só vale depois de salvar.</p>
       <div class="row" style="gap:12px;align-items:center" id="tm-logo-box"></div>
       <div class="grid grid-3 mt" style="gap:10px">
@@ -20,7 +20,7 @@ const Aparencia = {
       <div class="form-row">${field('CNPJ', `<input class="input" name="cnpj" value="${esc(t.cnpj || '')}">`, { opt: true })}${field('WhatsApp', `<input class="input" name="whatsapp" inputmode="tel" value="${esc(t.whatsapp || '')}">`, { opt: true })}</div>
       <div class="form-row">${field('Telefone', `<input class="input" name="telefone" inputmode="tel" value="${esc(t.telefone || '')}">`, { opt: true })}${field('Endereço', `<input class="input" name="endereco" value="${esc(t.endereco || '')}">`, { opt: true })}</div>
       <div class="grid grid-2"><button class="btn" id="tm-desfazer">${icon('undo')} Desfazer</button><button class="btn primary" id="tm-salvar">${icon('check')} Salvar aparência</button></div>
-      <div class="section-title mt">${icon('chat', 'sm')} Endereço da loja</div>
+      <div class="section-title mt">${icon('chat', 'sm')} Endereço da oficina</div>
       <div id="tm-endereco" class="small"></div>
       <div id="tm-dominio" class="small mt"></div>
     </div>`;
@@ -84,7 +84,7 @@ const Aparencia = {
     return st.getPublicUrl(caminho).data.publicUrl;
   },
 
-  // Endereço curto: digita só "oficinadojoao" e a loja fica em oficinadojoao.<dominio> (aceita colar o endereço completo)
+  // Endereço curto: digita só "oficinadojoao" e a oficina fica em oficinadojoao.<dominio> (aceita colar o endereço completo)
   limparEndereco(v) {
     let s = String(v || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/[/?#].*$/, '');
     if (s.endsWith('.' + PLATAFORMA.dominio)) s = s.slice(0, -PLATAFORMA.dominio.length - 1);
@@ -95,7 +95,7 @@ const Aparencia = {
     const box = $('#tm-endereco'); if (!box) return;
     const dono = Cloud.loja.papel === 'dono', atual = Cloud.loja.slug || '';
     const prev = s => s ? `https://<b>${esc(s)}</b>.${PLATAFORMA.dominio}` : `https://<b>sualoja</b>.${PLATAFORMA.dominio}`;
-    box.innerHTML = `<p class="xs muted" style="margin:0 0 8px">Digite só o nome da loja, sem espaços. O sistema da sua loja fica no endereço abaixo, já com a sua logo e as suas cores.</p>
+    box.innerHTML = `<p class="xs muted" style="margin:0 0 8px">Digite só o nome da oficina, sem espaços. O sistema da sua oficina fica no endereço abaixo, já com a sua logo e as suas cores.</p>
       <div class="row" style="gap:8px;align-items:stretch">
         <div class="input" style="display:flex;align-items:center;gap:2px;padding-top:0;padding-bottom:0;flex:1;min-width:0">
           <input id="tm-slug" placeholder="sualoja" value="${esc(atual)}" maxlength="60" autocomplete="off" autocapitalize="none" spellcheck="false" ${dono ? '' : 'disabled'}
@@ -103,7 +103,7 @@ const Aparencia = {
           <span class="muted" style="white-space:nowrap" data-no-i18n>.${PLATAFORMA.dominio}</span></div>
         ${dono ? `<button class="btn outline-gold" id="tm-slug-ok">Salvar</button>` : ''}</div>
       <div class="xs mt" id="tm-slug-prev" data-no-i18n>${prev(atual)}</div>
-      ${dono ? '' : '<p class="xs muted">Só o dono da loja altera o endereço.</p>'}`;
+      ${dono ? '' : '<p class="xs muted">Só o dono da oficina altera o endereço.</p>'}`;
     if (!dono) return;
     const inp = $('#tm-slug', box), pv = $('#tm-slug-prev', box);
     inp.oninput = () => { pv.innerHTML = prev(this.limparEndereco(inp.value)); };
@@ -114,7 +114,7 @@ const Aparencia = {
         await Cloud.definirSlug(s); inp.value = s; App.cacheLoja(); toast('Endereço salvo: ' + s + '.' + PLATAFORMA.dominio); this.endereco();
         const eq = $('#cf-end-loja'); if (eq) eq.textContent = s + '.' + PLATAFORMA.dominio;   // card Equipe e nuvem
       }
-      catch (err) { toast(/reservado/.test(err.message) ? 'Este endereço é reservado. Escolha outro.' : /em uso/.test(err.message) ? 'Este endereço já é de outra loja. Escolha outro.' : err.message, true); }
+      catch (err) { toast(/reservado/.test(err.message) ? 'Este endereço é reservado. Escolha outro.' : /em uso/.test(err.message) ? 'Este endereço já é de outra oficina. Escolha outro.' : err.message, true); }
     };
   },
 

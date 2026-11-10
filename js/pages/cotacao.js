@@ -1,19 +1,19 @@
-/* Cotação e pedido de peças pelo WhatsApp: até 3 fornecedores (nome + WhatsApp) cadastrados em Configurações.
-   No orçamento: "Cotar peça" pergunta o preço. Na OS: "Pedir peça" faz o pedido. A peça vem do cadastro de peças. */
+/* Cotação e pedido de peças pelo WhatsApp: até 3 fornecedores de uma vez.
+   A mensagem já leva o veículo: "Olá! Qual o valor da pastilha de freio dianteira do Onix 1.0 2019?". */
 const Cotacao = {
   MAX: 3,
-  // busca de peça por palavras soltas, em qualquer ordem ("tela 11" acha "Tela iPhone 11 Incell")
-  achaPeca(q, p) { const txt = norm([p.nome, p.codigo, p.compat, p.categoria].filter(Boolean).join(' ')); return norm(q).split(/\s+/).filter(Boolean).every(w => txt.includes(w)); },
+  // busca de peça por palavras soltas, em qualquer ordem ("pastilha onix" acha "Pastilha de freio Onix 2019")
+  achaPeca(q, p) { const txt = norm([p.nome, p.codigo, p.aplicacao, p.compat, p.categoria].filter(Boolean).join(' ')); return norm(q).split(/\s+/).filter(Boolean).every(w => txt.includes(w)); },
   fornecedores() { return (Store.s.fornecedoresPeca || []).filter(f => f && f.nome && onlyDigits(f.whats)); },
   // itens: [{ nome, qtd }]
   mensagem(tipo, itens) {
     if (tipo === 'pedido') return itens.length === 1 ? t('Olá, quero pedir {q}x {peca}.', { q: itens[0].qtd || 1, peca: itens[0].nome })
       : t('Olá, quero pedir:') + '\n' + itens.map(i => `• ${i.qtd || 1}x ${i.nome}`).join('\n');
-    return itens.length === 1 ? t('Olá, qual valor da {peca}?', { peca: (itens[0].qtd > 1 ? itens[0].qtd + 'x ' : '') + itens[0].nome })
+    return itens.length === 1 ? t('Olá! Qual o valor da {peca}?', { peca: (itens[0].qtd > 1 ? itens[0].qtd + 'x ' : '') + itens[0].nome })
       : t('Olá, qual valor das peças:') + '\n' + itens.map(i => `• ${i.qtd > 1 ? i.qtd + 'x ' : ''}${i.nome}`).join('\n');
   },
 
-  // tipo: 'preco' (orçamento) | 'pedido' (OS); ctx: { aparelho, osNumero }
+  // tipo: 'preco' / 'cotacao' (perguntar o preço) | 'pedido'; ctx: { veiculo, osNumero }
   // Escreve só a peça ("tela sem aro"); as cadastradas aparecem como sugestão enquanto digita.
   abrir(tipo, ctx = {}) {
     const forn = this.fornecedores();
@@ -24,11 +24,11 @@ const Cotacao = {
     }
     const pecas = Store.db.pecas.filter(p => !p.deleted).sort((a, b) => a.nome.localeCompare(b.nome));
     const pedido = tipo === 'pedido';
-    const mod = String(ctx.aparelho || '').replace(/\b(\d+\s?gb|tb)\b/ig, '').replace(/\s+/g, ' ').trim();
+    const mod = ctx.veiculo ? Veiculo.nome(ctx.veiculo) : String(ctx.modelo || '').trim();
     const m = openModal({
       title: pedido ? 'Pedir peça ao fornecedor' : 'Cotar preço da peça', icon: 'truck',
       subtitle: [mod, ctx.osNumero ? `OS #${ctx.osNumero}` : ''].filter(Boolean).join(' · '),
-      body: `${field('Peça', '<input class="input" id="ct-livre" autocomplete="off" placeholder="Ex: tela sem aro, bateria, conector de carga">')}
+      body: `${field('Peça', '<input class="input" id="ct-livre" autocomplete="off" placeholder="Ex: pastilha de freio dianteira">')}
         <div id="ct-list"></div>
         ${pedido ? field('Quantidade', '<input class="input" id="ct-qtd" type="number" min="1" value="1" style="max-width:120px">') : ''}
         <div class="lbl mt mb">${t('Mensagem')}</div>
@@ -38,7 +38,7 @@ const Cotacao = {
       foot: `<button class="btn" data-close>Fechar</button>`,
     });
     const el = m.el, inp = $('#ct-livre', el);
-    // nome final: a peça + o aparelho, se o nome ainda não tiver o modelo ("tela sem aro" → "tela sem aro do Samsung A12")
+    // nome final: a peça + o veículo, se o nome ainda não tiver o modelo ("pastilha de freio" → "pastilha de freio do Onix 1.0 2019")
     const nomeFinal = () => {
       const nome = inp.value.trim(); if (!nome) return '';
       const palavrasAp = norm(mod).split(/\s+/).filter(Boolean), chave = palavrasAp.filter(w => /\d/.test(w));
@@ -69,7 +69,7 @@ const Cotacao = {
     const fs = Store.s.fornecedoresPeca || [];
     return `<div class="card mb" id="cf-forn">
       <h3>${icon('truck', 'sm')} Fornecedores de <span class="gold">peças</span></h3>
-      <p class="small muted" style="margin-top:0">Até 3 fornecedores. No orçamento aparece "Cotar peça" (pergunta o preço pelo WhatsApp) e na OS "Pedir peça".</p>
+      <p class="small muted" style="margin-top:0">Até 3 fornecedores. No orçamento e na OS aparece "Cotar peça" (pergunta o preço pelo WhatsApp, já com o veículo).</p>
       <form id="cf-forn-f">${[0, 1, 2].map(i => `<div class="form-row">${field(`${t('Fornecedor')} ${i + 1}`, `<input class="input" name="nome${i}" placeholder="${t('Nome')}" value="${esc(fs[i]?.nome || '')}">`, { opt: i > 0 })}
         ${field('WhatsApp', `<input class="input" name="whats${i}" type="tel" placeholder="(48) 99999-9999" value="${esc(fs[i]?.whats || '')}">`, { opt: i > 0 })}</div>`).join('')}
         <button class="btn primary block">${icon('check')} Salvar fornecedores</button></form>
@@ -92,7 +92,7 @@ const Cotacao = {
 };
 
 /* Aba "Pedido fornecedor": monta uma lista de peças e manda para cotar ou pedir pelo WhatsApp.
-   A lista fica guardada neste aparelho até ser enviada ou limpa. */
+   A lista fica guardada neste dispositivo até ser enviada ou limpa. */
 Pages.fornecedor = {
   tipo: 'preco',
   chave() { return 'oficina_pedido_forn_' + (Cloud.loja?.id || 'local'); },

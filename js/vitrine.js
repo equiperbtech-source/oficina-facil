@@ -1,7 +1,7 @@
 /* Página pública da vitrine (sem login). Os dados vêm da função vitrine_publica,
-   que só devolve os itens que a loja marcou e só campos públicos (nunca custo, IMEI ou fornecedor).
+   que só devolve os itens que a oficina marcou e só campos públicos (nunca custo ou fornecedor).
    O cliente monta um carrinho e finaliza com nome, WhatsApp e horário de retirada (criar_pedido_vitrine). */
-const COND = { seminovo: 'Seminovo', novo: 'Novo', acessorio: 'Acessório' };
+const COND = { seminovo: 'Peça', novo: 'Peça', acessorio: 'Acessório' };
 const Vitrine = {
   sb: null, ref: '', dados: null, filtro: 'todos', carrinho: {},
 
@@ -9,7 +9,7 @@ const Vitrine = {
     const m = location.pathname.match(/\/vitrine\/([A-Za-z0-9-]{2,40})/);
     this.ref = m ? m[1] : new URLSearchParams(location.search).get('l') || '';
     const c = window.OFICINA_CONFIG || {};
-    if (!c.supabaseUrl || !window.supabase) return this.msg('Vitrine indisponível', 'A loja ainda não ativou a vitrine online.');
+    if (!c.supabaseUrl || !window.supabase) return this.msg('Vitrine indisponível', 'A oficina ainda não ativou a vitrine online.');
     this.sb = supabase.createClient(c.supabaseUrl, c.supabaseAnonKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
     try { this.carrinho = JSON.parse(localStorage.getItem(this.chave()) || '{}') || {}; } catch { this.carrinho = {}; }
     try {
@@ -20,8 +20,8 @@ const Vitrine = {
   async carregar() {
     const { data, error } = await this.sb.rpc('vitrine_publica', { p_ref: this.ref, p_host: location.host });
     if (error) throw error;
-    if (!data) return this.msg('Loja não encontrada', 'Confira se o link está completo.');
-    if (data.indisponivel) return this.msg('Vitrine indisponível', 'Esta loja não está com a vitrine ativa no momento.');
+    if (!data) return this.msg('Oficina não encontrada', 'Confira se o link está completo.');
+    if (data.indisponivel) return this.msg('Vitrine indisponível', 'Esta oficina não está com a vitrine ativa no momento.');
     this.dados = data;
     // tira do carrinho o que saiu da vitrine ou esgotou
     for (const id of Object.keys(this.carrinho)) { const i = this.item(id); if (!i || !i.disponivel) delete this.carrinho[id]; }
@@ -42,8 +42,8 @@ const Vitrine = {
   render() {
     const { loja: L, itens } = this.dados;
     document.title = `Vitrine · ${L.nome || ''}`;
-    const tipos = [['todos', 'Tudo'], ...['seminovo', 'novo', 'acessorio'].filter(k => itens.some(i => i.condicao === k)).map(k => [k, COND[k] + 's'])];
-    const lista = itens.filter(i => this.filtro === 'todos' || i.condicao === this.filtro);
+    const tipos = [['todos', 'Tudo'], ...['novo', 'acessorio'].filter(k => itens.some(i => (i.condicao === 'seminovo' ? 'novo' : i.condicao) === k)).map(k => [k, COND[k] + 's'])];
+    const lista = itens.filter(i => this.filtro === 'todos' || (i.condicao === 'seminovo' ? 'novo' : i.condicao) === this.filtro);
     const zap = foneWhats(L.whatsapp || '');
     const n = this.qtdTotal();
     $('#vt').classList.toggle('com-cart', n > 0);
@@ -51,16 +51,16 @@ const Vitrine = {
       <div class="vt-head">${Tema.atual ? Tema.logoHTML('', 'width:72px;height:72px;margin:0 auto 8px;border-radius:18px;object-fit:cover;font-size:26px') : ''}<h1>${Tema.atual ? Tema.nomeHTML(L.nome) : esc(L.nome || 'Vitrine')}</h1>
         ${Tema.atual?.slogan ? `<div class="small gold">${esc(Tema.atual.slogan)}</div>` : ''}
         <div class="small muted">${[L.endereco, L.instagram].filter(Boolean).map(esc).join(' · ')}</div>
-        <div class="small muted mt">Escolha, reserve e retire na loja.</div></div>
+        <div class="small muted mt">Escolha, reserve e retire na oficina.</div></div>
       ${tipos.length > 2 ? `<div class="vt-filtros tabs">${tipos.map(([k, l]) => `<button data-f="${k}" class="${this.filtro === k ? 'on' : ''}">${l}</button>`).join('')}</div>` : ''}
       <div class="vt-grid">${lista.map(i => { const q = this.carrinho[i.id] || 0; return `<div class="vt-card ${i.disponivel ? '' : 'vendido'}">
-        <div class="vt-foto" style="${i.fotos?.[0] ? `background-image:url('${encodeURI(i.fotos[0])}')` : ''}">${i.fotos?.[0] ? '' : icon('phone')}</div>
+        <div class="vt-foto" style="${i.fotos?.[0] ? `background-image:url('${encodeURI(i.fotos[0])}')` : ''}">${i.fotos?.[0] ? '' : icon('tag')}</div>
         <div class="vt-body"><span class="pill xs" style="align-self:flex-start">${i.disponivel ? esc(COND[i.condicao] || '') : 'Vendido'}</span>
           <b>${esc(i.nome)}</b>
-          <div class="xs muted">${[i.armazenamento, i.cor, i.bateria ? 'Bateria ' + i.bateria : ''].filter(Boolean).map(esc).join(' · ')}</div>
+          <div class="xs muted">${[i.categoria, i.cor].filter(Boolean).map(esc).join(' · ')}</div>
           ${i.descricao ? `<div class="xs muted">${esc(i.descricao)}</div>` : ''}
           <div class="vt-preco">${i.preco ? money(Number(i.preco)) : 'Consulte'}</div>
-          ${!i.disponivel ? '' : !i.preco ? (zap ? `<a class="btn sm success block" target="_blank" rel="noopener" href="https://wa.me/${zap}?text=${encodeURIComponent(t('Olá! Qual o preço do {produto}?', { produto: i.nome }))}">${icon('whatsapp', 'sm')} Perguntar</a>` : '')
+          ${!i.disponivel ? '' : !i.preco ? (zap ? `<a class="btn sm success block" target="_blank" rel="noopener" href="https://api.whatsapp.com/send?phone=${zap}&text=${encodeURIComponent(t('Olá! Qual o preço do {produto}?', { produto: i.nome }))}">${icon('whatsapp', 'sm')} Perguntar</a>` : '')
             : q ? `<div class="vt-qtd"><button class="btn sm" data-menos="${esc(i.id)}">−</button><b>${q}</b><button class="btn sm" data-mais="${esc(i.id)}">+</button></div>`
             : `<button class="btn sm primary block" data-add="${esc(i.id)}">${icon('cart', 'sm')} Adicionar</button>`}
         </div></div>`; }).join('') || '<div class="card empty">Nenhum item na vitrine agora.</div>'}</div>
@@ -96,8 +96,8 @@ const Vitrine = {
       title: 'Seu pedido', icon: 'cart',
       body: `${linhas.map(({ i, q }) => `<div class="kv"><span class="k">${q}× ${esc(i.nome)}</span><span class="v">${money(Number(i.preco) * q)}</span></div>`).join('')}
         <div class="kv"><span class="k bold">Total</span><span class="v gold bold">${money(this.total())}</span></div>
-        <p class="xs muted">O pagamento é feito na loja, na retirada.</p>
-        <div class="section-title mt">Retirada na loja</div>
+        <p class="xs muted">O pagamento é feito na oficina, na retirada.</p>
+        <div class="section-title mt">Retirada na oficina</div>
         <div class="form-row">${field('Dia', `<select class="input" name="dia">${dias.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('')}</select>`)}${field('Horário', `<select class="input" name="hora"></select>`)}</div>
         <div class="section-title mt">Seus dados</div>
         ${field('Nome', `<input class="input" name="nome" autocomplete="name" value="${esc(salvo.nome || '')}" required>`)}
@@ -131,8 +131,8 @@ const Vitrine = {
       <div class="stat-icon" style="justify-content:center;margin-bottom:10px"><div class="ic" style="color:var(--green);background:rgba(22,163,74,.12)">${icon('checkCircle')}</div></div>
       <h2 style="margin:0 0 6px">Pedido #${r.numero} enviado!</h2>
       <p class="muted" style="margin:0 0 6px">${esc(t('A {loja} já recebeu e vai separar seus itens.', { loja: L.nome || t('loja') }))}</p>
-      <p style="margin:0 0 18px">Retirada: <b class="gold">${d.toLocaleDateString(loc(), { weekday: 'long', day: '2-digit', month: '2-digit' })} às ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}</b><br>Total: <b>${money(r.total)}</b> (pago na loja)</p>
-      ${zap ? `<a class="btn success" target="_blank" rel="noopener" href="https://wa.me/${zap}?text=${encodeURIComponent(t('Olá! Fiz o pedido #{n} pela vitrine.', { n: r.numero }))}">${icon('whatsapp')} Falar com a loja</a>` : ''}
+      <p style="margin:0 0 18px">Retirada: <b class="gold">${d.toLocaleDateString(loc(), { weekday: 'long', day: '2-digit', month: '2-digit' })} às ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}</b><br>Total: <b>${money(r.total)}</b> (pago na oficina)</p>
+      ${zap ? `<a class="btn success" target="_blank" rel="noopener" href="https://api.whatsapp.com/send?phone=${zap}&text=${encodeURIComponent(t('Olá! Fiz o pedido #{n} pela vitrine.', { n: r.numero }))}">${icon('whatsapp')} Falar com a oficina</a>` : ''}
       <div class="mt"><a href="#" onclick="Vitrine.carregar();return false" class="small">Voltar para a vitrine</a></div></div>`;
   },
 };

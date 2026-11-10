@@ -38,7 +38,7 @@ const Pagamento = {
     openModal({
       title: 'Assinar', icon: 'card',
       body: `<p style="margin-top:0">Você vai para a página de pagamento segura.</p>
-        <div class="info-box">${icon('info')}<span>Use o <b>mesmo e-mail</b> desta conta (<b>${esc(Cloud.user?.email || '')}</b>) no pagamento: é assim que o plano é ligado à sua loja automaticamente.</span></div>`,
+        <div class="info-box">${icon('info')}<span>Use o <b>mesmo e-mail</b> desta conta (<b>${esc(Cloud.user?.email || '')}</b>) no pagamento: é assim que o plano é ligado à sua oficina automaticamente.</span></div>`,
       foot: `<button class="btn" data-close>Cancelar</button><a class="btn primary" target="_blank" rel="noopener" href="${esc(this.comEmail(p.url, l.param_email))}" onclick="closeAllModals()">${icon('card')} Ir para o pagamento</a>`,
     });
   },

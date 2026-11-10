@@ -1,5 +1,5 @@
 /* Importar estoque pelo XML da NF-e de compra (layout oficial da NF-e, versão 4.00).
-   Prévia → ajuste/mapeamento → confirmação. Cada item vira um lote. A mesma chave não entra duas vezes na loja. */
+   Prévia → ajuste/mapeamento → confirmação. Cada item vira um lote. A mesma chave não entra duas vezes na oficina. */
 const NFe = {
   // Lê o XML e devolve { chave, numero, serie, data, fornecedor: {cnpj, nome}, total, itens: [...] }
   ler(texto) {
@@ -34,7 +34,7 @@ const NFe = {
 
   jaImportada(chave) { return Store.db.nfe_entradas.find(n => n.id === chave && !n.deleted); },
 
-  // Confere também no servidor (outro aparelho pode ter importado agora)
+  // Confere também no servidor (outro dispositivo pode ter importado agora)
   async jaImportadaNaNuvem(chave) {
     if (!Cloud.enabled || !Cloud.loja || !Cloud.sb) return false;
     const { data, error } = await Cloud.sb.from('itens').select('id').eq('loja_id', Cloud.loja.id).eq('colecao', 'nfe_entradas').eq('id', chave);
@@ -113,7 +113,7 @@ const NFe = {
       if (!ok.length) return toast('Nenhum item com quantidade para importar', true);
       const b = $('#nf-ok', el); b.disabled = true;
       try {
-        if (this.jaImportada(n.chave) || await this.jaImportadaNaNuvem(n.chave)) { b.disabled = false; return toast('Esta nota já foi importada nesta loja.', true); }
+        if (this.jaImportada(n.chave) || await this.jaImportadaNaNuvem(n.chave)) { b.disabled = false; return toast('Esta nota já foi importada nesta oficina.', true); }
       } catch (e) { b.disabled = false; return toast(e.message, true); }
       this.confirmar(n, ok, $('#nf-desp', el).checked);
       m.close(); App.refresh();
@@ -132,7 +132,7 @@ const NFe = {
       if (tipo === 'novo') {
         tipoItem = ref; // produto | peca
         item = { id: uid(), nome: l.nome, codigo: l.ean || l.codigo, custo: l.custo, preco: l.preco || 0, qtd: 0, minimo: 0, categoria: '', fornecedorId: forn?.id || '', criadoEm: nowISO(), entradaEm: nowISO() };
-        if (tipoItem === 'produto') Object.assign(item, { tipoProduto: 'acessorio', seminovo: false, garantiaDias: 90 });
+        if (tipoItem === 'produto') Object.assign(item, { garantiaDias: 90 });
         (tipoItem === 'peca' ? Store.db.pecas : Store.db.produtos).push(item);
       } else {
         tipoItem = tipo;

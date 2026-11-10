@@ -104,12 +104,12 @@ const Cloud = {
     const { error } = await this.sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
     if (error) throw new Error(error.message);
   },
-  // Troca o e-mail de login: o Supabase manda um link de confirmação; a loja continua ligada à mesma conta
+  // Troca o e-mail de login: o Supabase manda um link de confirmação; a oficina continua ligada à mesma conta
   async alterarEmail(email) {
     const { error } = await this.sb.auth.updateUser({ email }, { emailRedirectTo: location.origin });
     if (error) throw new Error(/already|registered|exists/i.test(error.message) ? 'Este e-mail já tem uma conta na Oficina Simples' : /rate|seconds/i.test(error.message) ? 'Aguarde um minuto e tente de novo' : error.message);
   },
-  // depois de confirmar o e-mail novo: atualiza o e-mail guardado na equipe (usado para achar a loja numa compra)
+  // depois de confirmar o e-mail novo: atualiza o e-mail guardado na equipe (usado para achar a oficina numa compra)
   async sincronizarEmail() { try { await this.sb.rpc('sincronizar_meu_email'); } catch {} },
   async emailDaCompra() { try { const r = await this.sb.rpc('email_da_compra', { p_loja: this.loja.id }); return r.error ? null : r.data; } catch { return null; } },
   async novaSenha(senha) {
@@ -130,8 +130,8 @@ const Cloud = {
     if (error) throw error;
     const ls = (data || []).filter(m => m.lojas);
     this.lojas = ls.map(m => ({ ...m.lojas, papel: m.papel }));
-    // ordem de escolha: a loja que a pessoa escolheu por último, a loja do endereço acessado,
-    // a loja da equipe em que foi adicionada como funcionário e, por fim, a primeira
+    // ordem de escolha: a oficina que a pessoa escolheu por último, a oficina do endereço acessado,
+    // a oficina da equipe em que foi adicionada como funcionário e, por fim, a primeira
     let id = null;
     try { id = localStorage.getItem('oficina_loja_escolhida'); } catch {}
     if (!this.lojas.some(l => l.id === id)) id = null;
@@ -143,7 +143,7 @@ const Cloud = {
     if (this.loja) await this.carregarSlug();
     return this.loja;
   },
-  // endereço curto da loja (coluna criada na etapa 1 do SaaS; sem ela, segue sem slug)
+  // endereço curto da oficina (coluna criada na etapa 1 do SaaS; sem ela, segue sem slug)
   async carregarSlug() {
     try { const r = await this.sb.from('lojas').select('slug').eq('id', this.loja.id).maybeSingle(); if (!r.error) this.loja.slug = r.data?.slug || null; } catch {}
   },
@@ -162,7 +162,7 @@ const Cloud = {
     const { data, error } = await this.sb.rpc('criar_loja', { p_nome: nome });
     if (error) throw new Error(error.message);
     this.loja = { ...data, papel: 'dono' };
-    // a loja nasce no idioma escolhido no cadastro (banco sem a etapa 13: segue em português)
+    // a oficina nasce no idioma escolhido no cadastro (banco sem a etapa 13: segue em português)
     if (typeof I18N !== 'undefined' && I18N.idioma !== 'pt') await this.definirIdioma(I18N.idioma).catch(() => {});
   },
   // Código de convite: só envia um pedido; o dono aprova em Equipe. Devolve { nome, situacao }.
@@ -240,7 +240,7 @@ const Cloud = {
     return data;
   },
 
-  // Só o dono altera as informações da loja (configurações). Sem nuvem, quem usa é o dono.
+  // Só o dono altera as informações da oficina (configurações). Sem nuvem, quem usa é o dono.
   ehDono() { return !this.enabled || !this.loja || this.loja.papel === 'dono'; },
 
   /* ---------- Plano, recursos e papel (o banco valida tudo; aqui só adapta a tela e a sincronização) ---------- */
@@ -259,24 +259,24 @@ const Cloud = {
     return this.loja.assinatura || null;
   },
   assinatura() { return this.enabled && this.loja ? this.loja.assinatura || null : null; },
-  // Aparência da loja (etapa 6). Sem a tabela (banco antigo), segue a identidade original.
+  // Aparência da oficina (etapa 6). Sem a tabela (banco antigo), segue a identidade original.
   async carregarTema() {
     if (!this.loja) return null;
     try { const { data, error } = await this.sb.from('lojas_tema').select('*').eq('loja_id', this.loja.id).limit(1); if (!error && data?.[0]) this.loja.tema = data[0]; } catch {}
-    // quem ainda não escolheu um idioma usa o da loja
+    // quem ainda não escolheu um idioma usa o da oficina
     if (this.loja.tema?.idioma && typeof I18N !== 'undefined') I18N.usarDaLoja(this.loja.tema.idioma);
     return this.loja.tema || null;
   },
-  // idioma da loja: páginas do cliente final (acompanhamento, vitrine) e quem ainda não escolheu
+  // idioma da oficina: páginas do cliente final (acompanhamento, vitrine) e quem ainda não escolheu
   async definirIdioma(idioma) {
     const { error } = await this.sb.rpc('definir_idioma', { p_loja: this.loja.id, p_idioma: idioma });
     if (error) throw new Error(error.message);
     if (this.loja.tema) this.loja.tema.idioma = idioma;
   },
-  // Tema público pelo endereço acessado (tela de login no domínio da loja)
+  // Tema público pelo endereço acessado (tela de login no domínio da oficina)
   async temaPublico() {
-    // só no endereço da própria loja (subdomínio ou domínio dela); no endereço principal fica a marca Oficina Simples.
-    // undefined = não deu para conferir (sem internet); null = endereço sem loja
+    // só no endereço da própria oficina (subdomínio ou domínio dela); no endereço principal fica a marca Oficina Simples.
+    // undefined = não deu para conferir (sem internet); null = endereço sem oficina
     const l = await this.lojaDoHost();
     if (l === 'erro') return undefined;
     if (!l) return null;
@@ -288,7 +288,7 @@ const Cloud = {
     } catch { return undefined; }
   },
   // Loja do endereço acessado: domínio próprio, <nome>.<dominio> (mesmo sem "dominios_base" no admin).
-  // { id, nome } | null (nenhuma loja) | 'erro' (não deu para conferir)
+  // { id, nome } | null (nenhuma oficina) | 'erro' (não deu para conferir)
   async lojaDoHost() {
     if (this._lojaHost !== undefined) return this._lojaHost;
     if (!this.sb) return 'erro';
@@ -306,7 +306,7 @@ const Cloud = {
       return (this._lojaHost = l);
     } catch { return 'erro'; }
   },
-  // <nome>.<dominio> sem loja com esse endereço: não abre o sistema (o domínio aceita qualquer nome)
+  // <nome>.<dominio> sem oficina com esse endereço: não abre o sistema (o domínio aceita qualquer nome)
   async hostDesconhecido() {
     const base = String(PLATAFORMA.dominio || '').toLowerCase(), h = location.hostname.toLowerCase();
     if (!this.sb || !base || !h.endsWith('.' + base)) return false;
@@ -330,10 +330,10 @@ const Cloud = {
   },
 
   /* ---------- Sincronização ---------- */
-  // Liga a sincronização para a loja atual. enviarLocais = sobe os dados que já estão no aparelho.
+  // Liga a sincronização para a oficina atual. enviarLocais = sobe os dados que já estão no aparelho.
   async start(enviarLocais = false) {
     const lojaId = this.loja.id;
-    let fresh = false; // aparelho novo nesta loja: a nuvem manda, nada local é pendência
+    let fresh = false; // aparelho novo nesta oficina: a nuvem manda, nada local é pendência
     if (Store.db.lojaId !== lojaId) {
       const enviar = enviarLocais && !Store.db.lojaId;
       if (!enviar) { const auth = Store.db.auth; Store.db = defaultDB(); Store.db.auth = auth; fresh = true; }
@@ -365,7 +365,7 @@ const Cloud = {
   },
 
   saveSnap() { try { localStorage.setItem(SNAP_KEY, JSON.stringify({ lojaId: this.loja?.id, map: this.snap, base: this.base || {} })); } catch {} },
-  // Configurações da loja: mescla campo a campo. Vale o que mudou NESTE aparelho desde a última sincronização
+  // Configurações da oficina: mescla campo a campo. Vale o que mudou NESTE aparelho desde a última sincronização
   // (comparado com a base); todo o resto vem do servidor. Sem base (aparelho antigo), só completa o que falta.
   mesclarMeta(id, servidor, local) {
     if (id === 'seq') { // contadores (próximo nº de OS, venda...): sempre o maior, para nunca repetir número

@@ -19,7 +19,7 @@ test('WhatsApp: número de outro país sem "+" não ganha o 55 do Brasil', async
   expect(r.br).toEqual({ celularComDDD: '5548991154821', fixoComDDD: '554833334444', comMais: '5548991154821', jaCom55: '5548991154821',
     chileSemMais: '56912345678', chileComMais: '56912345678', portugalSemMais: '351912345678', com00: '56912345678', curto: '12345', vazio: '' });
   expect(r.cl).toEqual({ localChile: '912345678', pareceBR: '48991154821' });
-  expect(r.link).toBe('https://wa.me/5548991154821?text=Oi');
+  expect(r.link).toBe('https://api.whatsapp.com/send?phone=5548991154821&text=Oi');
 });
 
 test('moeda é da oficina: trocar o idioma para espanhol não converte os valores', async ({ page }) => {

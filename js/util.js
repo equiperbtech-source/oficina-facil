@@ -30,6 +30,8 @@ function parseNum(v) {
 }
 // Valor em dinheiro digitado (sempre na moeda da oficina)
 function parseMoney(v) { return typeof v === 'number' ? v : parseNum(v); }
+// quantidade: inteiro sem casas; com decimal (óleo em litro) até 3 casas
+function fmtQtd(q) { const n = Number(q) || 0; return Number.isInteger(n) ? String(n) : n.toLocaleString(typeof I18N !== 'undefined' ? I18N.locale() : 'pt-BR', { maximumFractionDigits: 3 }); }
 const moneyInput = v => { const x = Number(v) || 0; return Moeda.tela() === 'CLP' ? String(Math.round(x)) : x.toFixed(2).replace('.', ','); };
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -86,7 +88,8 @@ function foneWhats(phone, brasil) {
   if (brasil && DDD_BR.has(d.slice(0, 2)) && (/^\d{2}9\d{8}$/.test(d) || /^\d{2}[2-5]\d{7}$/.test(d))) return '55' + d;
   return d;
 }
-function waLink(phone, text) { return `https://wa.me/${foneWhats(phone)}?text=${encodeURIComponent(text)}`; }
+// api.whatsapp.com/send (com wa.me os emojis da mensagem quebram em alguns celulares)
+function waLink(phone, text) { const n = foneWhats(phone); return `https://api.whatsapp.com/send?${n ? `phone=${n}&` : ''}text=${encodeURIComponent(text)}`; }
 function norm(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
 function matches(q, ...fields) { q = norm(q).trim(); if (!q) return true; return fields.some(f => norm(f).includes(q)); }
 function download(name, content, type = 'application/json') {
@@ -110,7 +113,13 @@ const ICONS = {
   x: '<path d="M18 6 6 18M6 6l12 12"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   dash: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
-  phone: '<rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/>',
+  phone: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/>',
+  car: '<path d="M5 17h14v-5l-2-5H7l-2 5z"/><path d="M3 12h18M5 17v2M19 17v2"/><circle cx="7.5" cy="14.5" r="1"/><circle cx="16.5" cy="14.5" r="1"/>',
+  moto: '<circle cx="5.5" cy="16.5" r="3.5"/><circle cx="18.5" cy="16.5" r="3.5"/><path d="M5.5 16.5 9 10h5l4.5 6.5M14 10l-2-4h-2M15 6h3l1 3"/>',
+  fuel: '<path d="M3 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18M3 22h12M6 7h6"/><path d="M15 10h2a2 2 0 0 1 2 2v5a1.5 1.5 0 0 0 3 0V8l-3-3"/>',
+  gauge: '<path d="M12 14l4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/>',
+  plate: '<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M2 9h20M6 14h3M11 14h7"/>',
+  send: '<path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/>',
   file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h8M8 9h2"/>',
   card: '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>',
   users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',

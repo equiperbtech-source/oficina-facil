@@ -1,5 +1,5 @@
 /* Planos e assinatura: aviso no topo, tela de upgrade e "Meu plano".
-   Quem decide o que a loja pode é o banco (tem_recurso / pode_escrever); aqui só mostramos. */
+   Quem decide o que a oficina pode é o banco (tem_recurso / pode_escrever); aqui só mostramos. */
 const RECURSOS = {
   acompanhamento_os: 'Acompanhamento de OS em tempo real para o cliente',
   importar_xml: 'Importar estoque por XML (NF-e de compra)',
@@ -7,8 +7,8 @@ const RECURSOS = {
   tema: 'Logo, cor do tema e dados da empresa',
   modulos_personalizaveis: 'Escolher os módulos que aparecem',
   followup: 'Follow-up e pós-venda de clientes',
-  metas: 'Metas da loja e por funcionário',
-  vitrine: 'Vitrine online da loja',
+  metas: 'Metas da oficina e por funcionário',
+  vitrine: 'Vitrine online da oficina',
   dominio_proprio: 'Domínio próprio',
   nota_fiscal: 'Notas fiscais (NFS-e/NF)',
 };
@@ -39,7 +39,7 @@ const Planos = {
   queLibera(rec) { return this.todos().find(p => (p.recursos || []).includes(rec)); },
   // planos que ainda não estão à venda (aparecem, mas sem botão de compra)
   emBreve(id) { return PLANOS_EM_BREVE.includes(id); },
-  // preço da plataforma em que a loja assina (Hotmart: pesos chilenos; Kiwify: reais)
+  // preço da plataforma em que a oficina assina (Hotmart: pesos chilenos; Kiwify: reais)
   preco(p) {
     if (this.emBreve(p.id)) return 'Em breve';
     const l = typeof Pagamento !== 'undefined' ? Pagamento.links : null;
@@ -56,7 +56,7 @@ const Planos = {
     return 'Loja em modo somente leitura por falta de pagamento. Regularize em Meu plano para voltar a editar.';
   },
 
-  // selo sempre visível na barra do topo enquanto a loja está no teste grátis
+  // selo sempre visível na barra do topo enquanto a oficina está no teste grátis
   selo(a) {
     if (!a || a.isenta || a.situacao !== 'teste') return '';
     const d = this.diasAte(a.teste_ate);
@@ -71,7 +71,7 @@ const Planos = {
         const d = this.diasAte(a.teste_ate), bl = (a.bloqueados_teste || []).map(r => RECURSO_CURTO[r] || r);
         return bar('gold', `<b>Você está no teste grátis</b> do ${esc(a.plano_nome || 'Pro')}: ${d <= 1 ? 'termina hoje' : `faltam <b>${d} dias</b>`}.${bl.length ? ` ${esc(juntarE(bl))} ${bl.length > 1 ? 'são liberadas' : 'é liberada'} quando você assinar.` : ''}`, 'Assinar');
       }
-      case 'inadimplente': return bar('orange', `Pagamento atrasado. Regularize até <b>${fmtDate(this.limiteAtraso(a))}</b> para a loja não entrar em somente leitura.`, 'Regularizar');
+      case 'inadimplente': return bar('orange', `Pagamento atrasado. Regularize até <b>${fmtDate(this.limiteAtraso(a))}</b> para a oficina não entrar em somente leitura.`, 'Regularizar');
       case 'somente_leitura': return bar('red', 'Loja em <b>somente leitura</b> por falta de pagamento. Seus dados estão guardados.', 'Regularizar');
       case 'expirada': return bar('red', 'Seu plano terminou. Os dados estão guardados; para voltar a editar, assine um plano.', 'Assinar');
       case 'bloqueada': return bar('red', 'Loja <b>bloqueada</b>. Fale com o suporte.', '');
@@ -100,10 +100,10 @@ Pages.bloqueado = {
       <div class="card center" style="padding:32px 20px">
         <div class="stat-icon" style="justify-content:center;margin-bottom:12px"><div class="ic">${icon('lock')}</div></div>
         <h2 style="margin:0 0 6px">${esc(RECURSOS[rec] || 'Este recurso')}</h2>
-        <p class="muted" style="margin:0 0 18px">${a?.situacao === 'expirada' || a?.situacao === 'bloqueada' ? 'Sua loja está sem plano ativo. Os dados continuam guardados.' : `Seu plano atual (${esc(a?.plano_nome || '—')}) não inclui este módulo.`}
+        <p class="muted" style="margin:0 0 18px">${a?.situacao === 'expirada' || a?.situacao === 'bloqueada' ? 'Sua oficina está sem plano ativo. Os dados continuam guardados.' : `Seu plano atual (${esc(a?.plano_nome || '—')}) não inclui este módulo.`}
           ${p ? `Ele faz parte do plano <b class="gold">${esc(p.nome)}</b>.` : ''} Tudo o que já foi cadastrado aqui continua guardado.</p>
         ${Cloud.papel() === 'dono' ? `<button class="btn primary" onclick="${p ? `Planos.assinar('${p.id}')` : `App.go('plano')`}">${icon('trending')} Fazer upgrade${p ? ' para ' + esc(p.nome) : ''}</button>
-          <div class="mt"><a href="#/plano" class="small">Comparar planos</a></div>` : '<p class="small muted">Peça ao dono da loja para fazer o upgrade.</p>'}
+          <div class="mt"><a href="#/plano" class="small">Comparar planos</a></div>` : '<p class="small muted">Peça ao dono da oficina para fazer o upgrade.</p>'}
       </div>`;
   },
   // módulo de um plano que ainda não está à venda (ex.: notas fiscais do Pro Max)
@@ -126,7 +126,7 @@ Pages.bloqueado = {
         <h2 style="margin:0 0 6px">${esc(RECURSOS[rec] || 'Este recurso')}</h2>
         <p class="muted" style="margin:0 0 18px">Durante o teste grátis este módulo fica fechado. Ele é liberado assim que você assinar${rec === 'nota_fiscal' ? ' o plano <b class="gold">Pro Max</b>' : ` o plano <b class="gold">${esc(p?.nome || a.plano_nome || 'Pro')}</b>`}.</p>
         ${Cloud.papel() === 'dono' ? `<button class="btn primary" onclick="${rec === 'nota_fiscal' ? "Planos.assinar('pro_max')" : `Planos.assinar('${esc(a.plano || 'pro')}')`}">${icon('trending')} Assinar agora</button>
-          <div class="mt"><a href="#/plano" class="small">Comparar planos</a></div>` : '<p class="small muted">Peça ao dono da loja para assinar.</p>'}
+          <div class="mt"><a href="#/plano" class="small">Comparar planos</a></div>` : '<p class="small muted">Peça ao dono da oficina para assinar.</p>'}
       </div>`;
   },
 };
@@ -139,8 +139,8 @@ Pages.plano = {
       const planos = Planos.todos();
       const dono = Cloud.papel() === 'dono';
       if (!Cloud.enabled || !a) {
-        main.innerHTML = `${pageHead('shieldCheck', 'Meu plano', 'Assinatura da loja.')}
-          <div class="card empty">${icon('info')}<div>${Cloud.enabled ? 'As assinaturas ainda não foram ativadas nesta loja.' : 'Modo local: sem assinatura.'}</div></div>`;
+        main.innerHTML = `${pageHead('shieldCheck', 'Meu plano', 'Assinatura da oficina.')}
+          <div class="card empty">${icon('info')}<div>${Cloud.enabled ? 'As assinaturas ainda não foram ativadas nesta oficina.' : 'Modo local: sem assinatura.'}</div></div>`;
         return;
       }
       const [st, cor] = SITUACAO[a.situacao] || [a.situacao, ''];
@@ -176,7 +176,7 @@ Pages.plano = {
         }).join('')}</div>`;
     };
     desenhar();
-    // planos e preços/links da plataforma da loja (Kiwify ou Hotmart)
+    // planos e preços/links da plataforma da oficina (Kiwify ou Hotmart)
     if (Cloud.enabled && (!Planos.lista || (typeof Pagamento !== 'undefined' && !Pagamento.links))) {
       await Promise.all([Planos.carregar(), typeof Pagamento !== 'undefined' ? Pagamento.carregar() : null]);
       if (App.route === 'plano') desenhar();

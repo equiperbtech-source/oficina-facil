@@ -19,8 +19,8 @@ async function semRolagemLateral(page) {
 let n = 0;
 const emailNovo = nome => `${nome}.${Date.now().toString(36)}${n++}@teste.local`;
 
-// cria conta pela tela e a oficina no "Quase lá"
-async function criarContaEOficina(page, { email, senha = 'senha123', oficina }) {
+// cria conta pela tela e a oficina no "Quase lá" (tipos: 'carro' | 'moto' | 'carro,moto')
+async function criarContaEOficina(page, { email, senha = 'senha123', oficina, tipos = 'carro,moto' }) {
   await page.goto('/');
   await page.getByRole('button', { name: 'Criar conta' }).first().click();
   await page.fill('[name=email]', email);
@@ -28,7 +28,8 @@ async function criarContaEOficina(page, { email, senha = 'senha123', oficina }) 
   await page.fill('[name=senha2]', senha);
   await page.locator('#lg-btn').click();
   await page.locator('#ob-criar [name=nome]').fill(oficina);
-  await page.locator('#ob-criar button').click();
+  await page.locator(`#ob-criar input[name=tipos][value="${tipos}"]`).check({ force: true });
+  await page.locator('#ob-criar button.primary').click();
   await expect(page.locator('#main')).toBeVisible();
 }
 async function entrar(page, { email, senha = 'senha123' }) {
@@ -48,20 +49,25 @@ async function login(email, senha = 'senha123') {
   const r = await fetch(URL_SUPA + '/auth/v1/token?grant_type=password', { method: 'POST', headers: { apikey: ANON_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password: senha }) });
   return (await r.json()).access_token;
 }
-// cria clientes e OS de exemplo direto pelo Store (para prints e telas que dependem de dados)
+// cria clientes, veículos e OS de exemplo direto pelo Store (para prints e telas que dependem de dados)
 async function semearOS(page) {
   return page.evaluate(() => {
-    const ck = { 'Liga': 'ok', 'Tela': 'ok', 'Touch': 'nok' };
-    const mk = (nome, tel, modelo, defeito, servico, valor, status) => {
-      const c = Store.saveCliente({ nome, telefone: tel, aparelhos: [] });
-      const ap = { id: uid(), tipo: 'celular', modelo, cor: 'Prata' };
-      c.aparelhos.push(ap); Store.saveCliente(c);
-      return Store.saveOS({ clienteId: c.id, aparelho: { ...ap }, defeito, servico, valor, status, previsao: dayKey(addDays(new Date(), 2)), checklist: ck, pecas: [], garantiaDias: 90 });
+    const ck = { 'Pneus': 'ok', 'Freios': 'nok', 'Faróis e lanternas': 'ok' };
+    const mk = (nome, tel, v, defeito, servicos, pecas, status) => {
+      const c = Store.saveCliente({ nome, telefone: tel, veiculos: [] });
+      const vv = { id: uid(), ...v };
+      c.veiculos.push(vv); Store.saveCliente(c);
+      const o = Store.saveOS({ clienteId: c.id, veiculo: { ...vv }, defeito, status, previsao: dayKey(addDays(new Date(), 2)), kmEntrada: v.km, nivelCombustivel: '1/2',
+        checklist: ck, checklistItens: Checklist.itens(v.tipo), garantiaDias: 90, garantiaKm: 5000,
+        itensServico: servicos.map(([n, val]) => ({ id: uid(), nome: n, qtd: 1, valor: val })), itensPeca: pecas.map(([n, val, q = 1]) => ({ id: uid(), nome: n, qtd: q, valor: val, custo: Math.round(val * 0.6) })), desconto: 0,
+        servico: servicos.map(s => s[0]).join(', ') });
+      return o;
     };
-    const a = mk('Maria Souza', '48991154821', 'Onix 2019', 'Barulho na suspensão dianteira', 'Troca de amortecedores dianteiros', 850, 'servico');
-    mk('João Pereira', '48988887777', 'Honda CG 160', 'Corrente folgada', 'Troca da relação', 320, 'analise');
-    mk('Ana Lima', '48977776666', 'HB20 2021', 'Revisão dos 30 mil km', 'Revisão completa', 690, 'peca');
-    mk('Carlos Dias', '48966665555', 'Yamaha Fazer 250', 'Freio traseiro fraco', 'Troca de pastilhas', 180, 'concluido');
+    const a = mk('Maria Souza', '48991154821', { tipo: 'carro', placa: 'ABC1D23', marca: 'Chevrolet', modelo: 'Onix', motor: '1.0', anoModelo: '2019', cor: 'Prata', km: 45000, combustivel: 'flex' },
+      'Barulho na suspensão dianteira', [['Troca de amortecedores dianteiros', 350]], [['Amortecedor dianteiro', 250, 2]], 'servico');
+    mk('João Pereira', '48988887777', { tipo: 'moto', placa: 'MOT2E45', marca: 'Honda', modelo: 'CG 160 Fan', cilindrada: '160', anoModelo: '2021', km: 18000 }, 'Corrente folgada', [['Relação (coroa, pinhão e corrente)', 90]], [['Kit relação', 230]], 'analise');
+    mk('Ana Lima', '48977776666', { tipo: 'carro', placa: 'HBX2021', marca: 'Hyundai', modelo: 'HB20', anoModelo: '2021', km: 30000 }, 'Revisão dos 30 mil km', [['Revisão', 290]], [['Óleo 5W30', 45, 4], ['Filtro de óleo', 35]], 'peca');
+    mk('Carlos Dias', '48966665555', { tipo: 'moto', placa: 'FAZ3B50', marca: 'Yamaha', modelo: 'Fazer 250', anoModelo: '2020', km: 22000 }, 'Freio traseiro fraco', [['Pastilhas / lonas de freio', 60]], [['Pastilha traseira', 80]], 'concluido');
     Store.tokenOS(a); Store.save();
     return { id: a.id, numero: a.numero, token: a.token };
   });

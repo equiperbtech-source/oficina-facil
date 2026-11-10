@@ -1,10 +1,10 @@
-/* Vitrine da loja (plano Pro): escolher o que aparece na página pública, fotos e descrição. */
+/* Vitrine da oficina (plano Pro): escolher o que aparece na página pública, fotos e descrição. */
 const PV_STATUS = { novo: ['Novo', 'gold'], separado: ['Separado', 'blue'], retirado: ['Retirado', 'green'], cancelado: ['Cancelado', ''] };
 const VitrineAdmin = {
-  filtro: 'celulares', q: '', aba: 'produtos', filtroPed: 'abertos',
+  filtro: 'todos', q: '', aba: 'produtos', filtroPed: 'abertos',
   link() { return Cloud.loja ? `${location.origin}/vitrine/${Cloud.loja.slug || Cloud.loja.id}` : null; },
 
-  // Reduz a foto no aparelho (máx. 1200 px, JPEG) antes de enviar: carrega rápido e cabe no limite de 2 MB
+  // Reduz a foto no celular (máx. 1200 px, JPEG) antes de enviar: carrega rápido e cabe no limite de 2 MB
   async reduzir(file) {
     const img = await new Promise((ok, ko) => { const i = new Image(); i.onload = () => ok(i); i.onerror = ko; i.src = URL.createObjectURL(file); });
     const esc = Math.min(1, 1200 / Math.max(img.width, img.height));
@@ -34,20 +34,20 @@ const VitrineAdmin = {
       this.ligarPedidos(); return;
     }
     const prods = Store.db.produtos.filter(p => !p.deleted);
-    const lista = prods.filter(p => (this.filtro === 'celulares' ? ehCelular(p) : this.filtro === 'acessorios' ? !ehCelular(p) : p.vitrine) && matches(this.q, p.nome, p.cor, p.categoria))
+    const lista = prods.filter(p => (this.filtro !== 'na' || p.vitrine) && matches(this.q, p.nome, p.codigo, p.categoria))
       .sort((a, b) => (b.vitrine ? 1 : 0) - (a.vitrine ? 1 : 0) || a.nome.localeCompare(b.nome));
     const na = prods.filter(p => p.vitrine).length;
     const link = this.link();
     main.innerHTML = `
-      ${pageHead('tag', 'Vitrine', 'Escolha os aparelhos e acessórios que aparecem na página pública da loja.')}
+      ${pageHead('tag', 'Vitrine', 'Escolha as peças e os acessórios que aparecem na página pública da oficina.')}
       ${abas}
       ${link ? `<div class="card mb"><div class="small muted mb">Link da vitrine (divulgue no Instagram e no WhatsApp):</div>
         <div class="input" style="display:flex;align-items:center;font-size:13px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(link)}</div>
         <div class="grid grid-3 mt"><button class="btn sm" onclick="navigator.clipboard?.writeText('${esc(link)}');toast('Link copiado')">${icon('repeat', 'sm')} Copiar</button>
           <a class="btn sm" target="_blank" href="${esc(link)}">${icon('eye', 'sm')} Abrir</a>
-          <a class="btn sm success" target="_blank" href="https://wa.me/?text=${encodeURIComponent('Confira os aparelhos disponíveis: ' + link)}">${icon('whatsapp', 'sm')}</a></div></div>`
+          <a class="btn sm success" target="_blank" href="https://api.whatsapp.com/send?text=${encodeURIComponent(t('Confira as peças e acessórios disponíveis:') + ' ' + link)}">${icon('whatsapp', 'sm')}</a></div></div>`
         : `<div class="info-box">${icon('info')}<span>A vitrine online precisa da nuvem ligada.</span></div>`}
-      <div class="row wrap between mb"><div class="tabs" id="va-f">${[['celulares', 'Celulares'], ['acessorios', 'Acessórios'], ['na', `Na vitrine (${na})`]].map(([k, l]) => `<button data-k="${k}" class="${this.filtro === k ? 'on' : ''}">${l}</button>`).join('')}</div></div>
+      <div class="row wrap between mb"><div class="tabs" id="va-f">${[['todos', 'Todos'], ['na', `Na vitrine (${na})`]].map(([k, l]) => `<button data-k="${k}" class="${this.filtro === k ? 'on' : ''}">${l}</button>`).join('')}</div></div>
       <div class="input-icon mb">${icon('search')}<input class="input" id="va-q" placeholder="Buscar..." value="${esc(this.q)}"></div>
       <div class="card pad-0">${lista.slice(0, 200).map(p => `<div class="cart-line" style="padding:12px 16px">
         <div style="width:52px;height:52px;border-radius:10px;background:var(--bg-2) center/cover no-repeat;${p.fotos?.[0] ? `background-image:url('${encodeURI(p.fotos[0])}')` : ''};display:flex;align-items:center;justify-content:center;flex-shrink:0">${p.fotos?.[0] ? '' : icon('phone', 'sm')}</div>
@@ -68,7 +68,7 @@ const VitrineAdmin = {
       title: p.nome, icon: 'tag',
       body: `<label class="check mb"><input type="checkbox" id="ve-on" ${p.vitrine ? 'checked' : ''}> Mostrar na vitrine</label>
         ${field('Preço na vitrine', `<input class="input" inputmode="decimal" id="ve-preco" value="${moneyInput(p.preco)}">`)}
-        ${field('Descrição', `<textarea class="input" id="ve-desc" maxlength="300" placeholder="Ex: Aparelho impecável, acompanha cabo e capinha. Garantia de 6 meses.">${esc(p.descricao || '')}</textarea>`, { opt: true })}
+        ${field('Descrição', `<textarea class="input" id="ve-desc" maxlength="300" placeholder="Ex: Jogo de tapetes em borracha, encaixe perfeito. Garantia de 3 meses.">${esc(p.descricao || '')}</textarea>`, { opt: true })}
         <div class="lbl mb">Fotos (até 4)</div>
         <div id="ve-fotos" class="row wrap" style="gap:8px"></div>
         <p class="xs muted">As fotos ficam públicas na vitrine. A primeira é a capa.</p>`,
@@ -96,7 +96,7 @@ const VitrineAdmin = {
   },
 };
 
-/* ---------- Pedidos da vitrine (carrinho do cliente, retirada na loja) ---------- */
+/* ---------- Pedidos da vitrine (carrinho do cliente, retirada na oficina) ---------- */
 Object.assign(VitrineAdmin, {
   quando(d) { const x = new Date(d); return `${dayKey(x) === dayKey() ? 'Hoje' : dayKey(x) === dayKey(addDays(new Date(), 1)) ? 'Amanhã' : fmtDate(x)} às ${pad(x.getHours())}:${pad(x.getMinutes())}`; },
   pedidosHTML() {

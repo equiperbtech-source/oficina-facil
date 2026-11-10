@@ -1,4 +1,6 @@
-/* Estoque de peças (e editor compartilhado com produtos) */
+/* Peças e estoque: peças e produtos num cadastro só. A peça marcada "vende no balcão" aparece no Balcão.
+   Quantidade aceita decimal (óleo em litro, fluido em ml). */
+const UNIDADES = { un: 'un', L: 'litro', ml: 'ml', kg: 'kg', m: 'metro', jogo: 'jogo', par: 'par' };
 const EstoquePage = {
   st: { tab: 'pecas', q: '', baixo: false },
 
@@ -6,22 +8,23 @@ const EstoquePage = {
     const pecas = Store.db.pecas.filter(p => !p.deleted);
     const baixo = pecas.filter(p => p.qtd <= (p.minimo || 0));
     const custo = pecas.reduce((s, p) => s + (p.custo || 0) * Math.max(0, p.qtd), 0);
+    const verCusto = Cloud.papel() !== 'tecnico';
     main.innerHTML = `
-      ${pageHead('box', 'Gestão de Estoque', 'Gerencie peças de reparo e insumos técnicos.')}
-      <div class="grid grid-2 mb">
-        <button class="btn" onclick="EstoquePage.fornecedores()">${icon('truck')} Fornecedores</button>
-        <button class="btn" onclick="EstoquePage.lote('peca')">${icon('layers')} Entrada em lote</button>
-        <button class="btn outline-gold" onclick="NFe.abrir()">${icon('upload')} Importar XML (NF-e)</button>
-        <button class="btn" onclick="NFe.historico()">${icon('file')} Notas importadas</button>
-        <button class="btn" onclick="EstoquePage.exportar()">${icon('report')} Relatório</button>
-        <button class="btn" onclick="Print.etiquetas(Store.db.pecas.filter(p=>!p.deleted))">${icon('printer')} Etiquetas</button>
-      </div>
-      <button class="btn primary block mb" onclick="EstoquePage.editar('peca')">${icon('plus')} Nova Peça</button>
-      <div class="tabs mb" id="est-tabs" style="display:inline-flex">${[['pecas', 'Peças', 'box'], ['hist', 'Histórico', 'history']].map(([k, l, ic]) => `<button data-k="${k}" class="${this.st.tab === k ? 'on' : ''}">${icon(ic, 'sm')} ${l}</button>`).join('')}</div>
+      ${pageHead('box', 'Peças e estoque', 'Peças, óleos, filtros e acessórios. Marque "vende no balcão" para vender sem OS.')}
+      <button class="btn primary block mb" onclick="EstoquePage.editar('peca')">${icon('plus')} ${t('Nova peça')}</button>
+      ${verCusto ? `<div class="grid grid-2 mb">
+        <button class="btn" onclick="EstoquePage.lote('peca')">${icon('layers')} ${t('Entrada em lote')}</button>
+        <button class="btn outline-gold" onclick="NFe.abrir()">${icon('upload')} ${t('Importar XML (NF-e)')}</button>
+        <button class="btn" onclick="NFe.historico()">${icon('file')} ${t('Notas importadas')}</button>
+        <button class="btn" onclick="EstoquePage.exportar()">${icon('report')} ${t('Relatório')}</button>
+        <button class="btn" onclick="EstoquePage.comprar()">${icon('cart')} ${t('Lista "comprar"')}</button>
+        <button class="btn" onclick="Print.etiquetas(Store.db.pecas.filter(p=>!p.deleted))">${icon('printer')} ${t('Etiquetas')}</button>
+      </div>` : ''}
+      <div class="tabs mb" id="est-tabs" style="display:inline-flex">${[['pecas', 'Peças', 'box'], ['hist', 'Histórico', 'history']].map(([k, l, ic]) => `<button data-k="${k}" class="${this.st.tab === k ? 'on' : ''}">${icon(ic, 'sm')} ${t(l)}</button>`).join('')}</div>
       <div class="grid grid-3 mb">
-        <div class="stat stat-icon"><div class="ic">${icon('layers')}</div><div><div class="label">Total de peças</div><div class="value">${pecas.length} <span class="small muted">itens</span></div></div></div>
-        <div class="stat stat-icon" style="cursor:pointer" onclick="EstoquePage.st.baixo=!EstoquePage.st.baixo;EstoquePage.list()"><div class="ic" style="color:var(--orange);background:rgba(217,119,6,.12)">${icon('alert')}</div><div><div class="label">Baixo estoque</div><div class="value">${baixo.length} <span class="small muted">itens</span></div></div></div>
-        <div class="stat stat-icon" style="grid-column:1/-1;background:linear-gradient(135deg,var(--card),var(--bg-2));border-color:rgba(var(--gold-rgb), .35)"><div class="ic">${icon('dollar')}</div><div><div class="label">Custo do inventário</div><div class="value gold">${money(custo)}</div></div></div>
+        <div class="stat stat-icon"><div class="ic">${icon('layers')}</div><div><div class="label">${t('Itens cadastrados')}</div><div class="value">${pecas.length}</div></div></div>
+        <div class="stat stat-icon" style="cursor:pointer" onclick="EstoquePage.st.baixo=!EstoquePage.st.baixo;EstoquePage.list()"><div class="ic" style="color:var(--orange);background:rgba(217,119,6,.12)">${icon('alert')}</div><div><div class="label">${t('Estoque baixo')}</div><div class="value">${baixo.length}</div></div></div>
+        ${verCusto ? `<div class="stat stat-icon" style="grid-column:1/-1;background:linear-gradient(135deg,var(--card),var(--bg-2));border-color:rgba(var(--gold-rgb), .35)"><div class="ic">${icon('dollar')}</div><div><div class="label">${t('Custo do estoque')}</div><div class="value gold">${money(custo)}</div></div></div>` : ''}
       </div>
       <div id="est-body"></div>`;
     $$('#est-tabs button').forEach(b => b.onclick = () => { this.st.tab = b.dataset.k; $$('#est-tabs button').forEach(x => x.classList.toggle('on', x === b)); this.body(); });
@@ -32,12 +35,12 @@ const EstoquePage = {
     const box = $('#est-body');
     if (this.st.tab === 'hist') {
       const mov = Store.db.movEstoque.filter(m => m.tipoItem === 'peca').slice(0, 300);
-      box.innerHTML = `<div class="card pad-0"><div class="table-wrap"><table class="tbl"><tr><th>Data</th><th>Peça</th><th>Qtd</th><th>Saldo</th><th>Motivo</th></tr>
-        ${mov.map(m => `<tr><td class="small">${fmtDateTime(m.data)}</td><td>${esc(m.nome)}</td><td class="${m.qtd > 0 ? 'green' : 'red'} bold">${m.qtd > 0 ? '+' : ''}${m.qtd}</td><td>${m.saldo}</td><td class="small muted">${esc(m.motivo)}</td></tr>`).join('') || '<tr><td colspan="5" class="center muted">Sem movimentações</td></tr>'}</table></div></div>`;
+      box.innerHTML = `<div class="card pad-0"><div class="table-wrap"><table class="tbl"><tr><th>${t('Data')}</th><th>${t('Peça')}</th><th>${t('Qtd')}</th><th>${t('Saldo')}</th><th>${t('Motivo')}</th></tr>
+        ${mov.map(m => `<tr><td class="small">${fmtDateTime(m.data)}</td><td>${esc(m.nome)}</td><td class="${m.qtd > 0 ? 'green' : 'red'} bold">${m.qtd > 0 ? '+' : ''}${fmtQtd(m.qtd)}</td><td>${fmtQtd(m.saldo)}</td><td class="small muted">${esc(m.motivo)}</td></tr>`).join('') || `<tr><td colspan="5" class="center muted">${t('Sem movimentações')}</td></tr>`}</table></div></div>`;
       return;
     }
-    box.innerHTML = `<div class="card mb" style="padding:12px"><div class="row"><div class="input-icon grow">${icon('search')}<input class="input" id="est-q" placeholder="Buscar peça, código, categoria..." value="${esc(this.st.q)}"></div>
-      <button class="btn ${this.st.baixo ? 'outline-gold' : ''}" onclick="EstoquePage.st.baixo=!EstoquePage.st.baixo;EstoquePage.body()">${icon('alert')}</button></div></div>
+    box.innerHTML = `<div class="card mb" style="padding:12px"><div class="row"><div class="input-icon grow">${icon('search')}<input class="input" id="est-q" placeholder="Buscar peça, código, aplicação..." value="${esc(this.st.q)}"></div>
+      <button class="btn ${this.st.baixo ? 'outline-gold' : ''}" title="Só estoque baixo" onclick="EstoquePage.st.baixo=!EstoquePage.st.baixo;EstoquePage.body()">${icon('alert')}</button></div></div>
       <div class="card pad-0" id="est-list"></div>`;
     $('#est-q').oninput = e => { this.st.q = e.target.value; this.list(); };
     this.list();
@@ -45,18 +48,20 @@ const EstoquePage = {
 
   list() {
     const el = $('#est-list'); if (!el) return;
-    const list = Store.db.pecas.filter(p => !p.deleted && (!this.st.baixo || p.qtd <= (p.minimo || 0)) && matches(this.st.q, p.nome, p.codigo, p.categoria, p.compat))
+    const list = Store.db.pecas.filter(p => !p.deleted && (!this.st.baixo || p.qtd <= (p.minimo || 0)) && matches(this.st.q, p.nome, p.codigo, p.categoria, p.aplicacao, p.compat, p.marca))
       .sort((a, b) => a.nome.localeCompare(b.nome));
-    el.innerHTML = `<div class="list-head"><b>${list.length} peça(s)${this.st.baixo ? ' · <span class="gold">estoque baixo</span>' : ''}</b></div>` + (list.map(p => this.itemHTML(p, 'peca')).join('') || `<div class="empty">${icon('box')}<div>Nenhuma peça.</div></div>`);
+    el.innerHTML = `<div class="list-head"><b>${t('{n} item(ns)', { n: list.length })}${this.st.baixo ? ` · <span class="gold">${t('estoque baixo')}</span>` : ''}</b></div>` + (list.map(p => this.itemHTML(p, 'peca')).join('') || `<div class="empty">${icon('box')}<div>${t('Nenhuma peça.')}</div></div>`);
   },
 
   itemHTML(p, tipo) {
     const low = p.qtd <= (p.minimo || 0);
     const forn = Store.db.fornecedores.find(f => f.id === p.fornecedorId);
+    const verCusto = Cloud.papel() !== 'tecnico';
+    const passo = p.unidade && p.unidade !== 'un' ? 0.5 : 1;
     return `<div class="item" onclick="EstoquePage.editar('${tipo}','${p.id}')"><div class="row">
-      <div class="grow"><b>${esc(p.nome)}</b><div class="small muted ellipsis">${[p.codigo, p.categoria, p.compat, forn?.nome].filter(Boolean).map(esc).join(' · ') || '—'}</div>
-        <div class="small" style="margin-top:4px">Custo ${money(p.custo)}${p.preco ? ` · <span class="gold">Venda ${money(p.preco)}</span>` : ''}</div></div>
-      <div class="qty" onclick="event.stopPropagation()"><button onclick="EstoquePage.ajuste('${tipo}','${p.id}',-1)">−</button><span class="${low ? 'red' : ''}">${p.qtd}</span><button onclick="EstoquePage.ajuste('${tipo}','${p.id}',1)">+</button></div>
+      <div class="grow" style="min-width:0"><b>${esc(p.nome)}</b>${p.balcao ? ` <span class="pill gold xs">${t('Balcão')}</span>` : ''}<div class="small muted ellipsis">${[p.codigo, p.marca, p.aplicacao || p.compat, forn?.nome].filter(Boolean).map(esc).join(' · ') || '—'}</div>
+        <div class="small" style="margin-top:4px">${verCusto ? `${t('Custo')} ${money(p.custo)}` : ''}${p.preco ? `${verCusto ? ' · ' : ''}<span class="gold">${t('Venda')} ${money(p.preco)}</span>` : ''}</div></div>
+      <div class="qty" onclick="event.stopPropagation()"><button onclick="EstoquePage.ajuste('${tipo}','${p.id}',-${passo})" aria-label="${t('Menos')}">−</button><span class="${low ? 'red' : ''}">${fmtQtd(p.qtd)}${p.unidade && p.unidade !== 'un' ? ' ' + esc(p.unidade) : ''}</span><button onclick="EstoquePage.ajuste('${tipo}','${p.id}',${passo})" aria-label="${t('Mais')}">+</button></div>
     </div></div>`;
   },
 
@@ -70,69 +75,68 @@ const EstoquePage = {
     App.updateNav();
   },
 
-  // pre: valores iniciais de um produto novo (ex.: { tipoProduto: 'seminovo' })
+  // lista "comprar": tudo que está no mínimo ou abaixo, com a quantidade sugerida e o fornecedor
+  comprar() {
+    const l = Store.db.pecas.filter(p => !p.deleted && p.qtd <= (p.minimo || 0)).sort((a, b) => a.nome.localeCompare(b.nome));
+    const texto = l.map(p => `• ${p.nome}${p.codigo ? ` (${p.codigo})` : ''}: ${fmtQtd(Math.max(1, (p.minimo || 0) * 2 - p.qtd))} ${p.unidade || 'un'}`).join('\n');
+    openModal({
+      title: 'Lista "comprar"', icon: 'cart', subtitle: t('{n} item(ns) no mínimo ou abaixo', { n: l.length }),
+      body: l.length ? l.map(p => { const f = Store.db.fornecedores.find(x => x.id === p.fornecedorId); return `<div class="cart-line"><div class="grow"><b>${esc(p.nome)}</b><div class="xs muted">${t('Tem')} ${fmtQtd(p.qtd)} · ${t('mínimo')} ${fmtQtd(p.minimo || 0)}${f ? ' · ' + esc(f.nome) : ''}</div></div><b>${fmtQtd(Math.max(1, (p.minimo || 0) * 2 - p.qtd))}</b></div>`; }).join('') : `<div class="empty small">${t('Nada para comprar agora.')}</div>`,
+      foot: `<button class="btn" data-close>${t('Fechar')}</button>${l.length ? `<button class="btn" onclick="navigator.clipboard?.writeText(${esc(JSON.stringify(texto))});toast('Lista copiada')">${icon('repeat')} ${t('Copiar lista')}</button>` : ''}`,
+    });
+  },
+
+  // pre: valores iniciais de um item novo
   editar(tipo, id, pre = {}) {
     const col = this.col(tipo);
-    const p = id ? { ...col.find(x => x.id === id) } : { qtd: 0, minimo: 1, ...pre, ...(pre.tipoProduto === 'seminovo' ? { seminovo: true, minimo: 0, categoria: 'Celulares seminovos' } : pre.tipoProduto === 'novo' ? { minimo: 0, categoria: 'Celulares novos' } : {}) };
+    const p = id ? { ...col.find(x => x.id === id) } : { qtd: 0, minimo: 1, unidade: 'un', ...pre };
     const forns = Store.db.fornecedores.filter(f => !f.deleted);
-    const cats = [...new Set(col.map(x => x.categoria).filter(Boolean))];
-    const lbl = tipo === 'peca' ? 'Peça' : 'Produto';
+    const cats = [...new Set([...col.map(x => x.categoria), ...(Store.s.categoriasPecas || CATEGORIAS_PECAS)].filter(Boolean))];
+    const verCusto = Cloud.papel() !== 'tecnico';
     openModal({
-      title: id ? `Editar ${lbl}` : `Nova ${tipo === 'peca' ? 'Peça' : 'Produto'}`, icon: tipo === 'peca' ? 'box' : 'bag',
+      title: id ? t('Editar peça') : t('Nova peça'), icon: 'box',
       body: `
-        ${field('Nome', `<input class="input" name="nome" placeholder="${tipo === 'peca' ? 'Ex: Tela iPhone 11 Incell' : 'Ex: Película 3D iPhone 13'}" value="${esc(p.nome || '')}">`, { req: true })}
+        ${field('Nome', `<input class="input" name="nome" placeholder="${t('Ex: Pastilha de freio dianteira')}" value="${esc(p.nome || '')}">`, { req: true })}
         <div class="form-row">
-          ${field('Código / SKU', `<input class="input" name="codigo" value="${esc(p.codigo || '')}">`, { opt: true })}
-          ${field('Categoria', `<input class="input" name="categoria" list="dl-cat" value="${esc(p.categoria || '')}" placeholder="${tipo === 'peca' ? 'Tela, Bateria...' : 'Capinha, Cabo...'}"><datalist id="dl-cat">${cats.map(c => `<option value="${esc(c)}">`).join('')}</datalist>`, { opt: true })}
+          ${field('Código / referência', `<input class="input" name="codigo" value="${esc(p.codigo || '')}" placeholder="${t('Código do fabricante ou de barras')}">`, { opt: true })}
+          ${field('Marca', `<input class="input" name="marca" value="${esc(p.marca || '')}" placeholder="${t('Ex: Bosch')}">`, { opt: true })}
         </div>
-        ${tipo === 'peca' ? field('Modelos compatíveis', `<input class="input" name="compat" placeholder="Ex: iPhone 11, XR" value="${esc(p.compat || '')}">`, { opt: true }) : ''}
         <div class="form-row">
-          ${field('Custo (R$)', `<input class="input" name="custo" inputmode="decimal" value="${p.custo ? moneyInput(p.custo) : ''}" placeholder="0,00">`)}
-          ${field('Preço de venda (R$)', `<input class="input" name="preco" inputmode="decimal" value="${p.preco ? moneyInput(p.preco) : ''}" placeholder="0,00">`, { opt: tipo === 'peca' })}
+          ${field('Categoria', `<input class="input" name="categoria" list="dl-cat" value="${esc(p.categoria || '')}" placeholder="${t('Freios, Filtros, Óleos...')}"><datalist id="dl-cat">${cats.map(c => `<option value="${esc(c)}">`).join('')}</datalist>`, { opt: true })}
+          ${field('Unidade', `<select class="input" name="unidade">${selectOpts(UNIDADES, p.unidade || 'un')}</select>`)}
+        </div>
+        ${field('Aplicação (veículos)', `<input class="input" name="aplicacao" placeholder="${t('Ex: Onix 2017-2020, Prisma')}" value="${esc(p.aplicacao || p.compat || '')}">`, { opt: true })}
+        <div class="form-row">
+          ${verCusto ? field('Custo (R$)', `<input class="input" name="custo" inputmode="decimal" value="${p.custo ? moneyInput(p.custo) : ''}" placeholder="0,00">`) : ''}
+          ${field('Preço de venda (R$)', `<input class="input" name="preco" inputmode="decimal" value="${p.preco ? moneyInput(p.preco) : ''}" placeholder="0,00">`, { opt: true })}
         </div>
         <div class="small gold mb" id="ed-margem"></div>
         <div class="form-row">
-          ${field(id ? 'Quantidade atual' : 'Quantidade inicial', `<input class="input" type="number" name="qtd" value="${p.qtd ?? 0}">`)}
-          ${field('Estoque mínimo', `<input class="input" type="number" name="minimo" value="${p.minimo ?? 1}">`)}
+          ${field(id ? 'Quantidade atual' : 'Quantidade inicial', `<input class="input" inputmode="decimal" name="qtd" value="${fmtQtd(p.qtd ?? 0)}">`)}
+          ${field('Estoque mínimo', `<input class="input" inputmode="decimal" name="minimo" value="${fmtQtd(p.minimo ?? 1)}">`)}
         </div>
-        ${tipo === 'produto' ? `
-          <div class="lbl mb">Tipo de produto</div>
-          <input type="hidden" name="tipoProduto" value="${tipoProduto(p)}">
-          <div class="grid grid-3 mb" id="ed-tipo">${[['seminovo', 'Celular seminovo', 'phone', 'Garantia 6 meses'], ['novo', 'Celular novo', 'phone', 'Lacrado / novo'], ['acessorio', 'Acessório', 'tag', 'Capa, cabo, película...']]
-            .map(([k, l, ic, d]) => `<button type="button" class="chip-opt ${tipoProduto(p) === k ? 'on' : ''}" data-tp="${k}">${icon(ic)}<span>${l}</span><span class="xs muted" style="font-weight:500">${d}</span></button>`).join('')}</div>
-          <div id="ed-semi" class="${ehCelular(p) ? '' : 'hidden'}">
-            <div class="form-row">${field('IMEI / Serial', `<input class="input" name="imei" value="${esc(p.imei || '')}" style="font-family:ui-monospace,monospace">`, { opt: true })}${field('Cor', `<input class="input" name="cor" value="${esc(p.cor || '')}">`, { opt: true })}</div>
-            <div class="form-row">${field('Armazenamento', `<input class="input" name="armazenamento" placeholder="Ex: 128 GB" value="${esc(p.armazenamento || '')}">`, { opt: true })}${field('Saúde da bateria', `<input class="input" name="bateria" placeholder="Ex: 89%" value="${esc(p.bateria || '')}">`, { opt: true })}</div>
-            <div class="form-row">${field('Condição', `<select class="input" name="condicao"><option value="">—</option>${selectOpts(CONDICOES, p.condicao)}</select>`, { opt: true })}${field('Status', `<select class="input" name="statusAparelho">${selectOpts(Object.fromEntries(Object.entries(STATUS_AP).map(([k, [l]]) => [k, l])), p.statusAparelho || 'disponivel')}</select>`)}</div>
-          </div>
-          <div id="ed-gar" class="${p.seminovo ? 'hidden' : ''}">${field('Garantia (dias)', `<input class="input" type="number" name="garantiaDias" value="${p.garantiaDias ?? (tipoProduto(p) === 'novo' ? 365 : 90)}">`)}</div>` : ''}
+        <label class="check card mb" style="padding:12px 14px"><input type="checkbox" name="balcao" ${p.balcao ? 'checked' : ''}> <span><b>${t('Vende no balcão')}</b><br><span class="xs muted">${t('Aparece no Balcão para vender sem OS (acessórios, óleo, palhetas...).')}</span></span></label>
+        ${field('Garantia na venda (dias)', `<input class="input" type="number" min="0" name="garantiaDias" value="${p.garantiaDias ?? 90}">`, { opt: true })}
         ${field('Fornecedor', `<select class="input" name="fornecedorId"><option value="">—</option>${selectOpts(forns.map(f => [f.id, f.nome]), p.fornecedorId)}</select>`, { opt: true })}
-        ${id ? EstoquePage.lotesHTML(tipo, id) : ''}`,
-      foot: `${id ? `<button class="btn danger" id="ed-del">${icon('trash')}</button>` : ''}<button class="btn" data-close>Cancelar</button><button class="btn primary" id="ed-ok">${icon('check')} Salvar</button>`,
+        ${id && verCusto ? EstoquePage.lotesHTML(tipo, id) : ''}`,
+      foot: `${id ? `<button class="btn danger" id="ed-del" title="Excluir">${icon('trash')}</button>` : ''}<button class="btn" data-close>Cancelar</button><button class="btn primary" id="ed-ok">${icon('check')} Salvar</button>`,
       onMount: (el, m) => {
-        const mg = () => { const f = readForm(el); const c = parseMoney(f.custo), v = parseMoney(f.preco); $('#ed-margem', el).textContent = c && v ? `Lucro por unidade: ${money(v - c)} (${Math.round((v - c) / v * 100)}%)` : ''; };
-        $('[name=custo]', el).oninput = mg; $('[name=preco]', el).oninput = mg; mg();
-        $$('[data-tp]', el).forEach(b => b.onclick = () => {
-          const t = b.dataset.tp; $('[name=tipoProduto]', el).value = t;
-          $$('[data-tp]', el).forEach(x => x.classList.toggle('on', x === b));
-          $('#ed-semi', el).classList.toggle('hidden', t === 'acessorio');
-          $('#ed-gar', el).classList.toggle('hidden', t === 'seminovo');
-          const g = $('[name=garantiaDias]', el); if (g && !id) g.value = t === 'novo' ? 365 : 90;
-          const cat = $('[name=categoria]', el);
-          if (!cat.value || /^Celulares (novos|seminovos)$/.test(cat.value)) cat.value = t === 'seminovo' ? 'Celulares seminovos' : t === 'novo' ? 'Celulares novos' : cat.value.startsWith('Celulares') ? '' : cat.value;
-        });
+        const mg = () => { const f = readForm(el); const c = parseMoney(f.custo || p.custo), v = parseMoney(f.preco); $('#ed-margem', el).textContent = verCusto && c && v ? t('Lucro por unidade: {v} ({p}%)', { v: money(v - c), p: Math.round((v - c) / v * 100) }) : ''; };
+        $$('[name=custo], [name=preco]', el).forEach(i => i.oninput = mg); mg();
         $('#ed-ok', el).onclick = () => {
           const f = readForm(el);
           if (!f.nome) return toast('Informe o nome', true);
-          const qtd = parseInt(f.qtd) || 0;
-          Object.assign(p, { nome: f.nome, codigo: f.codigo, categoria: f.categoria, compat: f.compat, custo: parseMoney(f.custo), preco: parseMoney(f.preco), minimo: parseInt(f.minimo) || 0, fornecedorId: f.fornecedorId });
-          if (tipo === 'produto') Object.assign(p, { tipoProduto: f.tipoProduto, seminovo: f.tipoProduto === 'seminovo', imei: f.imei, cor: f.cor, armazenamento: f.armazenamento, bateria: f.bateria, condicao: f.condicao, statusAparelho: f.statusAparelho || 'disponivel', garantiaDias: f.tipoProduto === 'seminovo' ? GARANTIA_SEMINOVO_DIAS : parseInt(f.garantiaDias) || 0 });
+          const qtd = parseNum(f.qtd);
+          Object.assign(p, { nome: f.nome, codigo: f.codigo, marca: f.marca, categoria: f.categoria, unidade: f.unidade, aplicacao: f.aplicacao, preco: parseMoney(f.preco), minimo: parseNum(f.minimo),
+            balcao: !!f.balcao, garantiaDias: parseInt(f.garantiaDias, 10) || 0, fornecedorId: f.fornecedorId });
+          if (verCusto) p.custo = parseMoney(f.custo);
+          delete p.compat;
           if (!id) { p.id = uid(); p.criadoEm = p.entradaEm = nowISO(); p.qtd = 0; col.push(p); if (qtd) Store.movimentar(tipo, p, qtd, 'Estoque inicial'); }
-          else { const i = col.findIndex(x => x.id === id); const diff = qtd - col[i].qtd; p.qtd = col[i].qtd; col[i] = p; if (diff) Store.movimentar(tipo, p, diff, 'Ajuste na edição'); }
-          Store.save(); m.close(); App.refresh(); toast(`${lbl} salvo`);
+          else { const i = col.findIndex(x => x.id === id); const diff = Math.round((qtd - col[i].qtd) * 1000) / 1000; p.qtd = col[i].qtd; col[i] = p; if (diff) Store.movimentar(tipo, p, diff, 'Ajuste na edição'); }
+          Store.save(); m.close(); App.refresh(); toast(t('Peça salva'));
         };
         const del = $('#ed-del', el);
-        if (del) del.onclick = async () => { if (await confirmDialog(`Excluir "${p.nome}"?`, { danger: true, ok: 'Excluir' })) { col.find(x => x.id === id).deleted = true; Store.save(); m.close(); App.refresh(); } };
+        if (del) del.onclick = async () => { if (await confirmDialog(t('Excluir "{p}"?', { p: p.nome }), { danger: true, ok: 'Excluir' })) { col.find(x => x.id === id).deleted = true; Store.save(); m.close(); App.refresh(); } };
       },
     });
   },

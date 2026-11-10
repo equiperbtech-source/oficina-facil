@@ -66,59 +66,69 @@ const Print = {
       <div class="pkv"><b>Telefone:</b> ${esc(fmtPhone(c.telefone) || '—')}</div>
       <div class="pkv"><b>E-mail:</b> ${esc(c.email || '—')}</div></div>`;
   },
-  aparelhoBlock(a) {
-    a = a || {};
-    const tipo = (TIPOS_APARELHO.find(t => t[0] === a.tipo) || [])[1] || '';
-    return `<h3>Aparelho</h3><div class="g2">
-      <div class="pkv"><b>Modelo:</b> ${esc(a.modelo || '—')} ${tipo ? `(${tipo})` : ''}</div>
-      <div class="pkv"><b>${a.idTipo === 'serial' ? 'Serial' : 'IMEI'}:</b> ${esc(a.imei || '—')}</div>
-      <div class="pkv"><b>Cor:</b> ${esc(a.cor || '—')}</div></div>`;
+  veiculoBlock(v) {
+    v = v || {};
+    return `<h3>${v.tipo === 'moto' ? 'Moto' : 'Carro'}</h3><div class="g2">
+      <div class="pkv"><b>Placa:</b> <span class="placa-print">${esc(v.placa ? Placa.fmt(v.placa) : '—')}</span></div>
+      <div class="pkv"><b>Veículo:</b> ${esc(Veiculo.completo(v) || '—')}</div>
+      <div class="pkv"><b>Cor:</b> ${esc(v.cor || '—')}</div>
+      <div class="pkv"><b>Combustível:</b> ${esc(COMBUSTIVEIS[v.combustivel] || '—')}</div></div>`;
   },
   sigImg(src) { return src ? `<img src="${src}" alt="">` : ''; },
-  // Fotos do aparelho (se o lojista deixou marcado "mostrar na impressão")
-  fotosBlock(urls) { return urls.length ? `<h3>Fotos do aparelho</h3><div class="fotos">${urls.map(u => `<img src="${esc(u)}" alt="">`).join('')}</div>` : ''; },
+  // Fotos do veículo (as marcadas para sair na impressão)
+  fotosBlock(urls) { return urls.length ? `<h3>Fotos do veículo</h3><div class="fotos">${urls.map(u => `<img src="${esc(u)}" alt="">`).join('')}</div>` : ''; },
 
   async os(o) {
     const fotos = await Fotos.urlsParaImprimir(o);
     const c = Store.cliente(o.clienteId);
     const s = Store.s;
-    const tec = s.tecnicos.find(t => t.id === o.tecnicoId);
+    const tec = s.tecnicos.find(x => x.id === o.tecnicoId);
     this.run(`
-      ${this.header('Ordem de Serviço', o.numero)}
+      ${this.header('Termo de entrada', o.numero)}
       ${this.clienteBlock(c)}
-      ${this.aparelhoBlock(o.aparelho)}
-      <div class="g2"><div class="pkv"><b>Senha:</b> ${esc(o.senha || '—')}</div><div class="pkv"><b>Acessórios:</b> ${esc(o.acessorios || 'Nenhum')}</div></div>
-      ${typeof Padrao !== 'undefined' && Padrao.valido(o.padrao) ? `<div class="pkv" style="align-items:center"><b>Desenho:</b> ${Padrao.svg(o.padrao, { size: 78, print: true })}<span style="font-size:10px;color:#555;margin-left:8px">Começa no ponto 1</span></div>` : ''}
+      ${this.veiculoBlock(o.veiculo)}
+      <div class="g2"><div class="pkv"><b>Km na entrada:</b> ${o.kmEntrada ? fmtKm(o.kmEntrada) : '—'}</div><div class="pkv"><b>Combustível no tanque:</b> ${esc(Combustivel.rotulo(o.nivelCombustivel) || '—')}</div>
+      <div class="pkv"><b>Itens no veículo:</b> ${esc(o.acessorios || 'Nenhum')}</div></div>
       <h3>Serviço</h3>
-      <div class="pkv"><b>Defeito:</b> ${esc(o.defeito || '—')}</div>
+      <div class="pkv"><b>Reclamação:</b> ${esc(o.defeito || '—')}</div>
       <div class="pkv"><b>Serviço:</b> ${esc(o.servico || '—')}</div>
       ${o.obs ? `<div class="pkv"><b>Obs.:</b> ${esc(o.obs)}</div>` : ''}
-      <div class="g2"><div class="pkv"><b>Entrada:</b> ${fmtDateTime(o.criadoEm)}</div><div class="pkv"><b>Previsão:</b> ${fmtDate(o.previsao)}</div>
-      <div class="pkv"><b>Técnico:</b> ${esc(tec?.nome || '—')}</div><div class="pkv"><b>Status:</b> ${OS_STATUS[o.status].label}</div></div>
-      ${o.checklist && Object.keys(o.checklist).length ? `<h3>Checklist de entrada</h3><div class="chk">${CHECKLIST_ITENS.map(i => `<div>${o.checklist[i] === 'ok' ? '☑' : o.checklist[i] === 'nok' ? '☒' : '☐'} ${esc(i)}</div>`).join('')}</div>` : ''}
+      <div class="g2"><div class="pkv"><b>Entrada:</b> ${fmtDateTime(o.criadoEm)}</div>${s.usarPrevisao !== false ? `<div class="pkv"><b>Previsão:</b> ${fmtDate(o.previsao)}</div>` : ''}
+      <div class="pkv"><b>Mecânico:</b> ${esc(Mecanicos.nome(o.mecanicoId || o.tecnicoId) || '—')}</div><div class="pkv"><b>Etapa:</b> ${esc(OS_STATUS[o.status].label)}</div></div>
+      ${o.checklist && Object.keys(o.checklist).length ? `<h3>Checklist de entrada</h3><div class="chk">${Checklist.daOS(o).map(i => `<div>${o.checklist[i] === 'ok' ? '☑' : o.checklist[i] === 'nok' ? '☒' : '☐'} ${esc(i)}</div>`).join('')}</div>` : ''}
       ${this.fotosBlock(fotos)}
-      <div class="total">Valor: ${money(Store.osTotal(o))}${o.desconto ? ` <span style="font-size:11px;font-weight:400">(desconto ${money(o.desconto)})</span>` : ''}</div>
-      <h3>Termos</h3><div class="terms">${esc(s.termosEntrada)}</div>
+      ${(() => {
+        if (!OSItens.temItens(o)) return `<div class="total">Valor: ${money(Store.osTotal(o))}${o.desconto ? ` <span style="font-size:11px;font-weight:400">(desconto ${money(o.desconto)})</span>` : ''}</div>`;
+        const k = OSItens.totais(o);
+        const linhas = l => l.map(i => `<tr><td>${esc(i.nome)}</td><td>${fmtQtd(i.qtd)}</td><td>${money((Number(i.valor) || 0) * (Number(i.qtd) || 0))}</td></tr>`).join('');
+        return `<div class="g2"><div>${(o.itensServico || []).length ? `<h3>Mão de obra</h3><table><tr><th>Serviço</th><th style="width:40px">Qtd</th><th style="width:90px">Total</th></tr>${linhas(o.itensServico)}</table>` : ''}</div>
+          <div>${(o.itensPeca || []).length ? `<h3>Peças</h3><table><tr><th>Peça</th><th style="width:40px">Qtd</th><th style="width:90px">Total</th></tr>${linhas(o.itensPeca)}</table>` : ''}</div></div>
+          <p style="text-align:right;margin:6px 0 0">Mão de obra ${money(k.mo)} · Peças ${money(k.pe)}${k.desconto ? ` · Desconto -${money(k.desconto)}` : ''}</p>
+          <div class="total">Total: ${money(k.total)}</div>`;
+      })()}
+      <h3>Termos</h3><div class="terms">${esc(Termos.entrada())}</div>
       <div class="sigs"><div class="sig">${this.sigImg(o.assinaturaCliente)}Assinatura do cliente</div><div class="sig">${this.sigImg(tec?.assinatura || s.assinaturaDono)}${esc(s.loja)}</div></div>`);
   },
 
   async orcamento(orc) {
     const fotos = await Fotos.urlsParaImprimir(orc);
     const c = Store.cliente(orc.clienteId);
-    const total = orc.itens.reduce((s, i) => s + i.valor * (i.qtd || 1), 0);
+    OrcPage.normalizar(orc);
+    const k = OSItens.totais(orc);
+    const linhas = l => l.map(i => `<tr><td>${esc(i.nome)}</td><td>${fmtQtd(i.qtd)}</td><td>${money(i.valor)}</td><td>${money((Number(i.valor) || 0) * (Number(i.qtd) || 0))}</td></tr>`).join('');
     this.run(`
       ${this.header('Orçamento', orc.numero)}
       ${this.clienteBlock(c)}
-      ${this.aparelhoBlock(orc.aparelho)}
-      ${orc.defeito ? `<div class="pkv" style="margin-top:6px"><b>Defeito:</b> ${esc(orc.defeito)}</div>` : ''}
+      ${this.veiculoBlock(orc.veiculo)}
+      ${orc.defeito ? `<div class="pkv" style="margin-top:6px"><b>Reclamação:</b> ${esc(orc.defeito)}</div>` : ''}
       ${this.fotosBlock(fotos)}
-      <h3>Itens</h3>
-      <table><tr><th>Descrição</th><th style="width:50px">Qtd</th><th style="width:100px">Unit.</th><th style="width:100px">Total</th></tr>
-      ${orc.itens.map(i => `<tr><td>${esc(i.desc)}</td><td>${i.qtd || 1}</td><td>${money(i.valor)}</td><td>${money(i.valor * (i.qtd || 1))}</td></tr>`).join('')}</table>
-      <div class="total">Total: ${money(total)}</div>
+      ${orc.itensServico.length ? `<h3>Mão de obra</h3><table><tr><th>Serviço</th><th style="width:50px">Qtd</th><th style="width:100px">Unit.</th><th style="width:100px">Total</th></tr>${linhas(orc.itensServico)}</table>` : ''}
+      ${orc.itensPeca.length ? `<h3>Peças</h3><table><tr><th>Peça</th><th style="width:50px">Qtd</th><th style="width:100px">Unit.</th><th style="width:100px">Total</th></tr>${linhas(orc.itensPeca)}</table>` : ''}
+      <p style="text-align:right;margin:8px 0 0">Mão de obra ${money(k.mo)} · Peças ${money(k.pe)}${k.desconto ? ` · Desconto -${money(k.desconto)}` : ''}</p>
+      <div class="total">Total: ${money(k.total)}</div>
       <p><b>Validade:</b> ${fmtDate(orc.validade)} · <b>Prazo estimado:</b> ${esc(orc.prazo || '—')}</p>
       ${orc.obs ? `<p><b>Obs.:</b> ${esc(orc.obs)}</p>` : ''}
-      <div class="foot">Orçamento sujeito a alteração após análise técnica completa.</div>`);
+      <div class="foot">Orçamento sujeito a alteração após a desmontagem e o diagnóstico completo.</div>`);
   },
 
   venda(v) {
@@ -126,23 +136,27 @@ const Print = {
     this.run(`
       ${this.header('Recibo de Venda', v.numero)}
       ${c ? this.clienteBlock(c) : ''}
-      <h3>Produtos</h3>
-      <table><tr><th>Produto</th><th style="width:50px">Qtd</th><th style="width:100px">Unit.</th><th style="width:100px">Total</th></tr>
-      ${v.itens.map(i => `<tr><td>${esc(i.nome)}${i.imei ? `<br><small>IMEI ${esc(i.imei)}</small>` : ''}</td><td>${i.qtd}</td><td>${money(i.preco)}</td><td>${money(i.preco * i.qtd)}</td></tr>`).join('')}</table>
+      <h3>Itens</h3>
+      <table><tr><th>Item</th><th style="width:50px">Qtd</th><th style="width:100px">Unit.</th><th style="width:100px">Total</th></tr>
+      ${v.itens.map(i => `<tr><td>${esc(i.nome)}</td><td>${fmtQtd(i.qtd)}</td><td>${money(i.preco)}</td><td>${money(i.preco * i.qtd)}</td></tr>`).join('')}</table>
       ${v.desconto ? `<div class="right" style="margin-top:6px">Desconto: -${money(v.desconto)}</div>` : ''}
       <div class="total">Total: ${money(v.total)}</div>
-      <p><b>Pagamento:</b> ${esc(FORMAS_PGTO[v.forma] || v.forma)} · <b>Data:</b> ${fmtDateTime(v.data)}</p>
-      ${v.itens.filter(i => i.garantiaDias).map(i => `<p><b>Garantia ${esc(i.nome)}:</b> ${i.garantiaDias >= 180 ? '6 meses' : i.garantiaDias + ' dias'} (até ${fmtDate(addDays(v.data, i.garantiaDias))})${i.imei ? ' · IMEI ' + esc(i.imei) : ''}</p>`).join('')}
-      <div class="foot">Obrigado pela preferência! ${esc(Store.s.loja)}</div>`);
+      <p><b>Pagamento:</b> ${esc(nomeForma(v.forma))}${v.parcelas > 1 ? ` ${v.parcelas}x` : ''} · <b>Data:</b> ${fmtDateTime(v.data)}</p>
+      ${v.itens.filter(i => i.garantiaDias).map(i => `<p><b>Garantia ${esc(i.nome)}:</b> ${esc(prazoGarantia(i.garantiaDias))} (até ${fmtDate(addDays(v.data, i.garantiaDias))})</p>`).join('')}
+      <div class="foot">${esc(Termos.rodape())}</div>`);
   },
 
   etiquetas(itens) {
     this.run(`<div class="etq">${itens.map(p => `<div><b>${esc(p.nome)}</b>${p.codigo ? esc(p.codigo) + '<br>' : ''}${p.preco ? `<b>${money(p.preco)}</b>` : ''}<span style="font-size:9px">${esc(Store.s.loja)}</span></div>`).join('')}</div>`);
   },
 
+  // Etiqueta para prender no veículo ou na chave: placa em destaque
   osEtiqueta(o) {
-    const c = Store.cliente(o.clienteId);
-    this.run(`<div style="width:62mm;border:1px solid #000;padding:6px;font-size:11px"><b style="font-size:16px">OS #${o.numero}</b><br>${esc(c?.nome || '')}<br>${esc(o.aparelho?.modelo || '')}<br>${esc(o.defeito || '')}<br>Entrada: ${fmtDate(o.criadoEm)} ${o.senha ? '<br>Senha: ' + esc(o.senha) : ''}${typeof Padrao !== 'undefined' && Padrao.valido(o.padrao) ? `<div style="display:flex;align-items:center;gap:6px;margin-top:3px">Desenho: ${Padrao.svg(o.padrao, { size: 46, print: true })}</div>` : ''}</div>`);
+    const c = Store.cliente(o.clienteId), v = o.veiculo || {};
+    this.run(`<div style="width:62mm;border:1.5px solid #000;padding:6px;font-size:11px;text-align:center">
+      <div style="font:800 26px/1.1 ui-monospace,Menlo,monospace;letter-spacing:.06em;border:2px solid #000;border-radius:4px;padding:4px 0;margin-bottom:5px">${esc(v.placa ? Placa.fmt(v.placa) : '———')}</div>
+      <b style="font-size:15px">OS #${o.numero}</b><br>${esc(Veiculo.completo(v) || '')}<br>${esc(c?.nome || '')}<br>
+      <span style="font-size:10px">${esc(o.defeito || '')}</span><br>${t('Entrada')}: ${fmtDate(o.criadoEm)}${o.kmEntrada ? ' · ' + fmtKm(o.kmEntrada) : ''}</div>`);
   },
 };
 document.addEventListener('DOMContentLoaded', () => Print.init());

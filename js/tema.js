@@ -1,6 +1,6 @@
-/* Tema da loja (white-label): cores, fonte, logo e nome. Layout fixo; só a aparência muda.
+/* Tema da oficina (white-label): cores, fonte, logo e nome. Layout fixo; só a aparência muda.
    Usado no app e nas páginas públicas. O contraste segue a WCAG AA (texto normal ≥ 4,5:1). */
-// Marca da plataforma (o app); cada loja coloca a própria marca ao lado
+// Marca da plataforma (o app); cada oficina coloca a própria marca ao lado
 // Nome do sistema: Oficina Simples (o mesmo em português e espanhol)
 const PLATAFORMA = {
   logo: '/assets/oficina-simples.svg', icone: '/assets/os-192.png',
@@ -93,12 +93,12 @@ const Tema = {
     const ini = (this.nome('Loja').split(/\s+/).map(p => p[0]).join('').slice(0, 2) || 'L').toUpperCase();
     return `<div class="${classe} tema-selo" style="${estilo}">${esc(ini)}</div>`;
   },
-  // logo da Oficina Simples (telas sem loja: login, cadastro)
+  // logo da Oficina Simples (telas sem oficina: login, cadastro)
   marcaHTML(classe = '', estilo = '') { return `<img class="${classe}" src="${PLATAFORMA.logo}" alt="${PLATAFORMA.nome}" style="${estilo}">`; },
   // nome com a última palavra destacada (ex.: "Oficina do <gold>João</gold>")
   nomeHTML(fallback) {
     const n = this.nome(fallback).trim(); const i = n.lastIndexOf(' ');
-    // data-no-i18n: o nome da loja nunca é traduzido (ex.: "Loja do João")
+    // data-no-i18n: o nome da oficina nunca é traduzido (ex.: "Loja do João")
     return `<span data-no-i18n>${i > 0 ? `${esc(n.slice(0, i))} <span class="gold">${esc(n.slice(i + 1))}</span>` : `<span class="gold">${esc(n)}</span>`}</span>`;
   },
 };

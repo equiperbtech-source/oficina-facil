@@ -4,7 +4,7 @@ const PLANOS_N = { essencial: 'Essencial', pro: 'Pro', pro_max: 'Pro Max' };
 const SIT = { ativa: 'green', teste: 'gold', inadimplente: 'orange', somente_leitura: 'red', expirada: 'red', bloqueada: 'red' };
 const EV_ST = { aplicado: 'green', ignorado: '', pendente_loja: 'gold', revisao: 'orange', erro: 'red', rejeitado: 'red', recebido: 'gold' };
 const POR_PAG = 25;
-// plataforma de pagamento de onde a loja / o pagamento veio
+// plataforma de pagamento de onde a oficina / o pagamento veio
 const ORIGEM = { kiwify: ['Kiwify', 'green'], hotmart: ['Hotmart', 'orange'] };
 const origemPill = p => p && ORIGEM[p] ? `<span class="pill xs ${ORIGEM[p][1]}">${ORIGEM[p][0]}</span>` : '';
 const valorMoeda = (v, moeda) => { try { return new Intl.NumberFormat('es-CL', { style: 'currency', currency: moeda || 'CLP', currencyDisplay: 'code', maximumFractionDigits: 0 }).format(Number(v) || 0); } catch { return (moeda || '') + ' ' + v; } };
@@ -62,7 +62,7 @@ const Admin = {
   async sair() { await this.sb.auth.signOut(); document.cookie = 'os_admin=; Path=/; Max-Age=0'; location.href = '/admin-entrar.html'; },
 
   render() {
-    const abas = [['painel', 'Painel'], ['lojas', 'Lojas'], ['eventos', 'Pagamentos'], ['fila', 'Compras sem loja'], ['carrinhos', 'Carrinhos abandonados'], ['produtos', 'Produtos e planos'], ['avisos', 'Avisos'], ['comunicados', 'Comunicados'], ['auditoria', 'Auditoria']];
+    const abas = [['painel', 'Painel'], ['lojas', 'Oficinas'], ['eventos', 'Pagamentos'], ['fila', 'Compras sem oficina'], ['carrinhos', 'Carrinhos abandonados'], ['produtos', 'Produtos e planos'], ['avisos', 'Avisos'], ['comunicados', 'Comunicados'], ['auditoria', 'Auditoria']];
     $('#adm').innerHTML = `<div class="adm-top"><img src="/assets/os-192.png" alt="" style="width:40px;height:40px;border-radius:10px"><h1 style="margin:0;font-size:22px">Oficina Simples <span class="gold">admin</span></h1><div class="spacer" style="flex:1"></div>
         <a class="btn sm" href="/">Abrir o app</a><button class="btn sm" onclick="Admin.sair()">${icon('logout', 'sm')} Sair</button></div>
       <div class="adm-tabs tabs">${abas.map(([k, l]) => `<button data-a="${k}" class="${this.aba === k ? 'on' : ''}">${l}</button>`).join('')}</div>
@@ -74,7 +74,7 @@ const Admin = {
   async painel() {
     const r = await this.api('resumo');
     const k = (l, v, cor = '') => `<div class="stat"><div class="label">${l}</div><div class="value ${cor}">${v}</div></div>`;
-    $('#adm-c').innerHTML = `<div class="kpis mb">${k('Lojas', r.lojas)}${k('MRR Kiwify', money(r.mrr), 'gold')}${'mrr_hotmart' in r ? k('MRR Hotmart', valorMoeda(r.mrr_hotmart, r.moeda_hotmart), 'gold') : ''}${k('Novas no mês', r.novas_mes)}${k('Notas no mês', r.notas_mes)}
+    $('#adm-c').innerHTML = `<div class="kpis mb">${k('Oficinas', r.lojas)}${k('MRR Kiwify', money(r.mrr), 'gold')}${'mrr_hotmart' in r ? k('MRR Hotmart', valorMoeda(r.mrr_hotmart, r.moeda_hotmart), 'gold') : ''}${k('Novas no mês', r.novas_mes)}${k('Notas no mês', r.notas_mes)}
         ${k('Pagamentos a revisar', r.eventos_pendentes, r.eventos_pendentes ? 'orange' : '')}${k('Avisos', r.avisos, r.avisos ? 'red' : '')}</div>
       <div class="grid grid-2"><div class="card"><h3>Por plano</h3>${Object.entries(r.por_plano).map(([p, n]) => `<div class="kv"><span class="k">${esc(PLANOS_N[p] || p)}</span><span class="v">${n}</span></div>`).join('')}</div>
       <div class="card"><h3>Por situação</h3>${Object.entries(r.por_situacao).map(([s, n]) => `<div class="kv"><span class="k"><span class="pill xs ${SIT[s] || ''}">${esc(s)}</span></span><span class="v">${n}</span></div>`).join('')}</div>
@@ -94,7 +94,7 @@ const Admin = {
         ${r.lojas.map(l => `<tr class="clic" data-l="${l.id}"><td><b>${esc(l.nome)}</b><div class="xs muted">${esc(l.dono_email || '')}${l.slug ? ' · ' + esc(l.slug) : ''}</div></td>
           <td>${esc(PLANOS_N[l.plano_id] || l.plano_id || '—')}${l.isenta ? ' <span class="pill xs green">isenta</span>' : ''} ${origemPill(l.provedor_pagamento)}</td><td><span class="pill xs ${SIT[l.situacao] || ''}">${esc(l.situacao)}</span></td>
           <td>${l.proxima_cobranca ? fmtDate(l.proxima_cobranca) : '—'}</td><td>${l.funcionarios}/${l.limite}</td><td>${l.notas_mes}/${l.franquia}</td><td>${l.creditos}</td>
-          <td>${l.ultima_atividade ? fmtDate(l.ultima_atividade) : '—'}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Nenhuma loja.</td></tr>'}</table></div>
+          <td>${l.ultima_atividade ? fmtDate(l.ultima_atividade) : '—'}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Nenhuma oficina.</td></tr>'}</table></div>
       ${this.paginas(r.total, f.pag, 'f')}`;
     let t; $('#lj-q').oninput = e => { clearTimeout(t); t = setTimeout(() => { f.busca = e.target.value; f.pag = 0; this.lojas(); }, 350); };
     $('#lj-p').onchange = e => { f.plano = e.target.value; f.pag = 0; this.lojas(); };
@@ -124,8 +124,8 @@ const Admin = {
           <button class="btn outline-gold" data-ac="teste">${icon('clock', 'sm')} Dias de teste grátis</button><button class="btn" data-ac="cortesia">${icon('calendar', 'sm')} Cortesia (acesso completo)</button>
           <button class="btn" data-ac="plano">${icon('shieldCheck', 'sm')} Alterar plano</button>
           <button class="btn" data-ac="creditos">${icon('file', 'sm')} Créditos de notas</button>
-          <button class="btn ${l.status_assinatura === 'bloqueada' ? 'outline-gold' : 'danger'}" data-ac="bloq">${l.status_assinatura === 'bloqueada' ? 'Reativar loja' : 'Bloquear loja'}</button>
-          <button class="btn outline-gold" data-ac="entrar" style="grid-column:1/-1">${icon('eye', 'sm')} Entrar como a loja (somente leitura, 2 h)</button></div></div>
+          <button class="btn ${l.status_assinatura === 'bloqueada' ? 'outline-gold' : 'danger'}" data-ac="bloq">${l.status_assinatura === 'bloqueada' ? 'Reativar oficina' : 'Bloquear oficina'}</button>
+          <button class="btn outline-gold" data-ac="entrar" style="grid-column:1/-1">${icon('eye', 'sm')} Entrar como a oficina (somente leitura, 2 h)</button></div></div>
         ${d.dominios.length ? `<div class="card mt"><b>Domínios</b>${d.dominios.map(x => `<div class="kv"><span class="k">${esc(x.dominio)}</span><span class="v"><button class="btn sm" data-dom="${esc(x.dominio)}" data-ok="${x.verificado ? 0 : 1}">${x.verificado ? 'Desativar' : 'Ativar'}</button></span></div>`).join('')}</div>` : ''}
         <details class="card mt"><summary class="bold">Pagamentos (${d.pagamentos.length})</summary>${d.pagamentos.map(e => `<div class="kv"><span class="k">${fmtDateTime(e.recebido_em)} · ${esc(e.tipo || '')}</span><span class="v"><span class="pill xs ${EV_ST[e.status] || ''}">${esc(e.status)}</span>${e.erro ? ` <span class="xs red">${esc(e.erro)}</span>` : ''}</span></div>`).join('') || '<p class="muted small">Nenhum.</p>'}</details>
         <details class="card mt"><summary class="bold">Notas (${d.notas.length})</summary>${d.notas.map(n => `<div class="kv"><span class="k">${fmtDateTime(n.criado_em)} · ${money(n.valor)}${n.ambiente === 'homologacao' ? ' · hom.' : ''}</span><span class="v">${esc(n.status)}${n.numero ? ' nº ' + esc(n.numero) : ''}${n.erro ? ` <span class="xs red">${esc(n.erro)}</span>` : ''}</span></div>`).join('') || '<p class="muted small">Nenhuma.</p>'}
@@ -146,16 +146,16 @@ const Admin = {
       if (ac === 'plano') { const v = await perguntar('Alterar plano', field('Plano', `<select class="input" name="plano">${selectOpts(PLANOS_N, l.plano_id)}</select>`)); if (v) feito(this.api('alterar_plano', { p_loja: id, p_plano: v.plano, p_motivo: v.motivo })); }
       if (ac === 'teste') {
         const resta = l.teste_ate ? Math.max(0, Math.ceil((new Date(l.teste_ate) - Date.now()) / 86400000)) : 7;
-        const v = await perguntar('Dias de teste grátis', `<p class="small" style="margin-top:0">A loja continua <b>em teste</b>: vê o aviso no topo e fica <b>sem vitrine e sem notas fiscais</b>. Coloque quantos dias de teste ela ainda tem (pode aumentar ou diminuir; <b>0 encerra o teste agora</b>). Se houver cortesia, ela é retirada.</p>` + field('Dias de teste a partir de hoje', `<input class="input" name="dias" type="number" min="0" max="90" value="${resta}">`));
+        const v = await perguntar('Dias de teste grátis', `<p class="small" style="margin-top:0">A oficina continua <b>em teste</b>: vê o aviso no topo e fica <b>sem vitrine e sem notas fiscais</b>. Coloque quantos dias de teste ela ainda tem (pode aumentar ou diminuir; <b>0 encerra o teste agora</b>). Se houver cortesia, ela é retirada.</p>` + field('Dias de teste a partir de hoje', `<input class="input" name="dias" type="number" min="0" max="90" value="${resta}">`));
         if (v) feito(this.api('definir_teste', { p_loja: id, p_dias: parseInt(v.dias), p_motivo: v.motivo }));
       }
-      if (ac === 'cortesia') { const v = await perguntar('Cortesia (acesso completo)', '<p class="small" style="margin-top:0">Cortesia libera <b>tudo do plano, como se a loja tivesse pago</b>: sem aviso de teste e sem limites. Para dar mais dias de <b>teste</b>, use "Dias de teste grátis".</p>' + field('Dias', '<input class="input" name="dias" type="number" min="1" max="365" value="7">')); if (v) feito(this.api('cortesia', { p_loja: id, p_dias: parseInt(v.dias), p_motivo: v.motivo })); }
+      if (ac === 'cortesia') { const v = await perguntar('Cortesia (acesso completo)', '<p class="small" style="margin-top:0">Cortesia libera <b>tudo do plano, como se a oficina tivesse pago</b>: sem aviso de teste e sem limites. Para dar mais dias de <b>teste</b>, use "Dias de teste grátis".</p>' + field('Dias', '<input class="input" name="dias" type="number" min="1" max="365" value="7">')); if (v) feito(this.api('cortesia', { p_loja: id, p_dias: parseInt(v.dias), p_motivo: v.motivo })); }
       if (ac === 'creditos') { const v = await perguntar('Créditos de notas', field('Quantidade (negativo para retirar)', '<input class="input" name="qtd" type="number" value="10">')); if (v) feito(this.api('creditar', { p_loja: id, p_qtd: parseInt(v.qtd), p_motivo: v.motivo })); }
-      if (ac === 'bloq') { const bloq = l.status_assinatura !== 'bloqueada'; const v = await perguntar(bloq ? 'Bloquear loja' : 'Reativar loja', `<p>${bloq ? 'A loja fica em somente leitura; nenhum dado é apagado.' : 'A loja volta a funcionar.'}</p>`); if (v) feito(this.api('bloquear', { p_loja: id, p_bloquear: bloq, p_motivo: v.motivo })); }
+      if (ac === 'bloq') { const bloq = l.status_assinatura !== 'bloqueada'; const v = await perguntar(bloq ? 'Bloquear oficina' : 'Reativar oficina', `<p>${bloq ? 'A oficina fica em somente leitura; nenhum dado é apagado.' : 'A oficina volta a funcionar.'}</p>`); if (v) feito(this.api('bloquear', { p_loja: id, p_bloquear: bloq, p_motivo: v.motivo })); }
       if (ac === 'entrar') {
-        const v = await perguntar('Entrar como a loja', '<p class="small">Você verá a loja como ela vê, <b>sem poder alterar nada</b>, por 2 horas. A loja vê o aviso de suporte e tudo fica registrado.</p>');
+        const v = await perguntar('Entrar como a oficina', '<p class="small">Você verá a oficina como ela vê, <b>sem poder alterar nada</b>, por 2 horas. A oficina vê o aviso de suporte e tudo fica registrado.</p>');
         if (!v) return;
-        try { await this.api('entrar_como', { p_loja: id, p_motivo: v.motivo }); localStorage.setItem('oficina_loja_escolhida', id); window.open('/', '_blank'); toast('Abrindo a loja em outra aba'); } catch {}
+        try { await this.api('entrar_como', { p_loja: id, p_motivo: v.motivo }); localStorage.setItem('oficina_loja_escolhida', id); window.open('/', '_blank'); toast('Abrindo a oficina em outra aba'); } catch {}
       }
     });
     $$('[data-dom]', el).forEach(b => b.onclick = () => feito(this.api('verificar_dominio', { p_dominio: b.dataset.dom, p_ok: b.dataset.ok === '1' })));
@@ -178,7 +178,7 @@ const Admin = {
     $$('[data-rp]').forEach(b => b.onclick = async () => { try { const s = await this.api('reprocessar', { p_evento: +b.dataset.rp }); toast('Resultado: ' + s); this.recarregar(); } catch {} });
     $$('[data-pl]').forEach(b => b.onclick = () => { const e = r.eventos.find(x => x.id === +b.dataset.pl); openModal({ title: 'Evento #' + e.id, icon: 'file', wide: true, body: `<pre class="json">${esc(JSON.stringify(e.payload, null, 2))}</pre>` }); });
     $$('[data-vc]').forEach(b => b.onclick = async () => {
-      const lj = prompt('ID da loja (copie da lista de lojas, no detalhe da loja):'); if (!lj) return;
+      const lj = prompt('ID da oficina (copie da lista de lojas, no detalhe da oficina):'); if (!lj) return;
       const motivo = prompt('Motivo (fica na auditoria):'); if (!motivo) return;
       try { const s = await this.api('vincular', { p_evento: +b.dataset.vc, p_loja: lj.trim(), p_motivo: motivo }); toast('Resultado: ' + s); this.recarregar(); } catch {}
     });
@@ -204,7 +204,7 @@ const Admin = {
           <td>${c.comprou ? '<span class="pill xs green">Comprou</span>' : c.situacao === 'contatado' ? `<span class="pill xs gold">Contatado${c.canal ? ' · ' + (c.canal === 'whatsapp' ? 'WhatsApp' : 'e-mail') : ''}</span><div class="xs muted">${fmtDate(c.contato_em)}</div>` : c.situacao === 'descartado' ? '<span class="pill xs">Descartado</span>' : '<span class="pill xs orange">A recuperar</span>'}
             ${c.tem_conta && !c.comprou ? '<div class="xs muted">já tem conta (teste)</div>' : ''}</td>
           <td><div class="row wrap" style="gap:6px">
-            ${tel ? `<a class="btn sm success" target="_blank" rel="noopener" data-cr-w="${i}" href="https://wa.me/${tel}?text=${encodeURIComponent(Carrinhos.mensagem(c))}">${icon('whatsapp', 'sm')} WhatsApp</a>` : ''}
+            ${tel ? `<a class="btn sm success" target="_blank" rel="noopener" data-cr-w="${i}" href="https://api.whatsapp.com/send?phone=${tel}&text=${encodeURIComponent(Carrinhos.mensagem(c))}">${icon('whatsapp', 'sm')} WhatsApp</a>` : ''}
             <a class="btn sm" data-cr-e="${i}" href="mailto:${encodeURIComponent(c.email)}?subject=${encodeURIComponent(Carrinhos.assunto(c))}&body=${encodeURIComponent(Carrinhos.mensagem(c))}">${icon('mail', 'sm')} E-mail</a>
             ${c.comprou ? '' : c.situacao ? `<button class="btn sm ghost" data-cr-r="${i}">Reabrir</button>` : `<button class="btn sm ghost" data-cr-c="${i}">Marcar contatado</button><button class="btn sm ghost" data-cr-d="${i}">Descartar</button>`}
           </div></td></tr>`; }).join('') || `<tr><td colspan="5" class="muted">${f.filtro === 'abertos' ? 'Nenhum carrinho abandonado para recuperar.' : 'Nada aqui.'}</td></tr>`}</table></div>`;
@@ -240,7 +240,7 @@ const Admin = {
           ${['essencial', 'pro'].map(id => `<div class="field" style="margin:0"><label>${PLANOS_N[id]}/mês</label><input class="input" name="${id}" inputmode="decimal" value="${esc(cfg.precos_hotmart?.[id] ?? '')}" style="width:120px"></div>`).join('')}
           <button class="btn sm outline-gold">Salvar</button></form></div>
       <div class="card mb"><h3 style="margin-top:0">E-mail da plataforma (avisos de pedido)</h3>
-        <p class="xs muted">Chave do Brevo usada por <b>todas as lojas</b> que não colaram a própria: os avisos de pedido de orçamento e da vitrine saem por ela, com o nome da loja como remetente. O Brevo grátis envia até 300 e-mails por dia no total.</p>
+        <p class="xs muted">Chave do Brevo usada por <b>todas as oficinas</b> que não colaram a própria: os avisos de pedido de orçamento e da vitrine saem por ela, com o nome da oficina como remetente. O Brevo grátis envia até 300 e-mails por dia no total.</p>
         <div id="ep-st" class="small muted mb">Carregando...</div>
         <form id="ep-f">
           <div class="form-row">${field('E-mail remetente (confirmado no Brevo)', '<input class="input" name="remetente" type="email" placeholder="contato@seudominio.com.br">')}
@@ -329,7 +329,7 @@ const Admin = {
     $$('[data-al]').forEach(b => b.onclick = async () => { await this.api('aviso_lido', { p_id: +b.dataset.al }); this.avisos(); });
   },
 
-  // Mensagem em pop-up para todas as pessoas de todas as lojas (cada uma vê uma vez, ao abrir o sistema)
+  // Mensagem em pop-up para todas as pessoas de todas as oficinas (cada uma vê uma vez, ao abrir o sistema)
   async comunicados() {
     const r = await this.api('comunicados');
     const IDI = { todos: '', pt: 'só português', es: 'só espanhol' };
@@ -338,8 +338,8 @@ const Admin = {
         ${field('Título (opcional)', `<input class="input" name="titulo${pref}" maxlength="120" placeholder="${exT}">`)}
         ${field('Mensagem', `<textarea class="input" name="mensagem${pref}" rows="6" maxlength="4000" placeholder="${exM}"></textarea>`)}</div>`;
     $('#adm-c').innerHTML = `<form id="cm-form" class="card mb"><h3>Novo comunicado</h3>
-        <p class="xs muted" style="margin-top:-4px">Um envio só: cada loja recebe a versão de onde assina, em pop-up, na próxima vez que abrir o sistema (uma vez por pessoa).
-          Lojas em teste ou sem assinatura recebem pelo idioma da loja. Deixe um lado em branco para mandar só para o outro.</p>
+        <p class="xs muted" style="margin-top:-4px">Um envio só: cada oficina recebe a versão de onde assina, em pop-up, na próxima vez que abrir o sistema (uma vez por pessoa).
+          Lojas em teste ou sem assinatura recebem pelo idioma da oficina. Deixe um lado em branco para mandar só para o outro.</p>
         <div class="grid grid-2">
           ${lado('', 'green', 'Lojas Kiwify · português', 'Lojas do Brasil (e lojas sem assinatura em português).', 'Ex.: Novidade no sistema', 'Ex.: Lojistas, atualizem a página para ver a nova função.')}
           ${lado('_es', 'orange', 'Lojas Hotmart · espanhol', 'Lojas do Chile e demais em espanhol (e lojas sem assinatura em espanhol).', 'Ej.: Novedad en el sistema', 'Ej.: Tiendas, actualicen la página para ver la nueva función.')}
@@ -357,7 +357,7 @@ const Admin = {
       e.preventDefault();
       const f = readForm(e.target), pt = !!f.mensagem.trim(), es = !!f.mensagem_es.trim();
       if (!pt && !es) return toast('Escreva a mensagem de pelo menos um lado', true);
-      const para = pt && es ? 'todas as lojas (Kiwify em português e Hotmart em espanhol)' : pt ? 'só as lojas Kiwify / português' : 'só as lojas Hotmart / espanhol';
+      const para = pt && es ? 'todas as oficinas (Kiwify em português e Hotmart em espanhol)' : pt ? 'só as lojas Kiwify / português' : 'só as lojas Hotmart / espanhol';
       if (!(await confirmDialog(`Enviar para ${para}? Cada pessoa verá o pop-up ao abrir o sistema.`, { ok: 'Enviar' }))) return;
       await this.api('salvar_comunicado2', { p_titulo: f.titulo, p_mensagem: f.mensagem, p_titulo_es: f.titulo_es, p_mensagem_es: f.mensagem_es });
       toast('Comunicado enviado'); this.comunicados();

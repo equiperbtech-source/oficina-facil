@@ -1,41 +1,45 @@
 /* Banco de dados local (localStorage) */
-// Textos padrão da loja em outros idiomas (termos de garantia e de entrada)
+// Textos padrão da oficina em outros idiomas (termos de garantia e de entrada)
 const PADROES_IDIOMA = {
   es: {
-    termosGarantia: 'La garantía cubre únicamente el servicio realizado y los repuestos reemplazados descritos en esta orden. No cubre: daños por caídas, contacto con líquidos, mal uso, equipo abierto por terceros, sello de garantía violado ni daños en la pantalla ocurridos después de la entrega.',
-    termosGarantiaSeminovo: 'Garantía de 6 meses contra fallas de funcionamiento del equipo (placa, pantalla, batería, cámaras, audio y conectores), contados desde la fecha de compra. No cubre: caídas, grietas, contacto con líquidos, mal uso, desgaste natural de la batería por uso intenso, equipo abierto por terceros, bloqueos de cuenta (iCloud/Google) hechos por el comprador ni daños causados por accesorios no originales.',
-    termosGarantiaProduto: 'Celulares nuevos: garantía del fabricante desde la fecha de compra. Accesorios: garantía contra defectos de fabricación por el plazo indicado. La garantía no cubre mal uso, caídas, contacto con líquidos, cables rotos o doblados, desgaste natural ni productos abiertos o violados. Guarda este recibo: es necesario para hacer válida la garantía.',
-    termosEntrada: 'Los equipos no retirados en un plazo de 90 días después del aviso de finalización se considerarán abandonados. La tienda no se responsabiliza por datos, chips ni tarjetas de memoria dejados en el equipo.',
+    termosGarantia: 'La garantía cubre únicamente el servicio realizado y los repuestos cambiados descritos en esta orden, por el plazo o el kilometraje indicados (lo que ocurra primero). No cubre: desgaste natural, mal uso, accidentes, falta de mantenimiento, uso de combustible o lubricante inadecuados, ni intervenciones de terceros en las piezas reparadas.',
+    termosGarantiaProduto: 'Repuestos y accesorios: garantía contra defectos de fabricación por el plazo indicado. No cubre instalación hecha por terceros, mal uso, accidentes ni desgaste natural. Guarda este recibo: es necesario para hacer válida la garantía.',
+    termosEntrada: 'Los vehículos no retirados en un plazo de 90 días después del aviso de finalización se considerarán abandonados. El taller no se responsabiliza por objetos personales dejados en el vehículo que no estén anotados en esta orden.',
   },
 };
 const DB_KEY = 'oficina_db_v1';
 
 const OS_STATUS = {
-  analise:   { label: 'Em Análise',       icon: 'alertCircle', color: '#1D4ED8', pill: 'blue' },
-  peca:      { label: 'Aguardando Peça',  icon: 'box',         color: '#C2410C', pill: 'orange' },
-  servico:   { label: 'Em Serviço',       icon: 'wrench',      color: '#7C3AED', pill: 'purple' },
-  concluido: { label: 'Concluído',        icon: 'checkCircle', color: '#137333', pill: 'green' },
+  analise:   { label: 'Em análise',            icon: 'alertCircle', color: '#1D4ED8', pill: 'blue' },
+  aprovacao: { label: 'Aguardando aprovação',  icon: 'clock',       color: '#A16207', pill: 'orange' },
+  peca:      { label: 'Aguardando peça',       icon: 'box',         color: '#C2410C', pill: 'orange' },
+  servico:   { label: 'Em serviço',            icon: 'wrench',      color: '#7C3AED', pill: 'purple' },
+  concluido: { label: 'Pronto para retirada',  icon: 'checkCircle', color: '#137333', pill: 'green' },
   pago:      { label: 'Pago',             icon: 'dollar',      color: '#0F766E', pill: 'gold' },
   interrompido: { label: 'Interrompido',  icon: 'xCircle',     color: '#B91C1C', pill: 'red' },
 };
-const OS_ATIVOS = ['analise', 'peca', 'servico', 'concluido'];
-/* Cards da bancada: a loja cria cards novos (ex.: "Aguardando cliente") e tira os que não usa.
+const OS_ATIVOS = ['analise', 'aprovacao', 'peca', 'servico', 'concluido'];
+/* Etapas do pátio: a oficina cria etapas novas (ex.: "Aguardando cliente"), renomeia e tira as que não usa.
+   O card "Pago" fica fixo no fim, fora do quadro de etapas ativas.
    Fica em Store.s.etapas = { extras: [{ id: 'e_...', label, cor, removida }], ocultas: ['peca'], ordem: ['analise', ...] }.
-   "Em análise" (entrada da OS) e "Concluído" (pronto para retirada) não saem: o resto do sistema depende deles.
+   "Em análise" (entrada da OS) e "Pronto para retirada" não saem: o resto do sistema depende deles.
+   Renomear uma etapa padrão: Store.s.etapas.nomes = { peca: 'Esperando peça' }.
    Card removido continua com o nome guardado, para o histórico das OS antigas. */
-const ETAPAS_BASE = ['analise', 'peca', 'servico', 'concluido'];
+const ETAPAS_BASE = ['analise', 'aprovacao', 'peca', 'servico', 'concluido'];
 const ETAPAS_FIXAS = ['analise', 'concluido'];
 const Etapas = {
   CORES: ['#DB2777', '#0E7490', '#A16207', '#4D7C0F', '#C2410C', '#64748B'],   // todas com contraste AA no branco
   MAX: 8,
   cfg() {
     const e = (typeof Store !== 'undefined' && Store.s && Store.s.etapas) || {};
-    return { extras: Array.isArray(e.extras) ? e.extras : [], ocultas: Array.isArray(e.ocultas) ? e.ocultas : [], ordem: Array.isArray(e.ordem) ? e.ordem : [] };
+    return { extras: Array.isArray(e.extras) ? e.extras : [], ocultas: Array.isArray(e.ocultas) ? e.ocultas : [], ordem: Array.isArray(e.ordem) ? e.ordem : [],
+      nomes: e.nomes && typeof e.nomes === 'object' ? e.nomes : {} };
   },
   // Monta OS_STATUS e OS_ATIVOS (em ordem) a partir da configuração da loja
   aplicar() {
-    const { extras, ocultas, ordem } = this.cfg();
-    Object.keys(OS_STATUS).forEach(k => { if (k.startsWith('e_')) delete OS_STATUS[k]; else delete OS_STATUS[k].oculto; });
+    const { extras, ocultas, ordem, nomes } = this.cfg();
+    Object.keys(OS_STATUS).forEach(k => { if (k.startsWith('e_')) delete OS_STATUS[k]; else { delete OS_STATUS[k].oculto; OS_STATUS[k].label = OS_STATUS[k].padrao || (OS_STATUS[k].padrao = OS_STATUS[k].label); } });
+    Object.entries(nomes).forEach(([k, v]) => { if (OS_STATUS[k] && ETAPAS_BASE.includes(k) && String(v || '').trim()) OS_STATUS[k].label = String(v).trim().slice(0, 28); });
     extras.forEach(x => { if (x && x.id && String(x.id).startsWith('e_')) OS_STATUS[x.id] = { label: String(x.label || 'Etapa'), icon: 'tag', color: x.cor || '#64748B', pill: '', extra: true, oculto: !!x.removida }; });
     ocultas.forEach(k => { if (OS_STATUS[k] && ETAPAS_BASE.includes(k) && !ETAPAS_FIXAS.includes(k)) OS_STATUS[k].oculto = true; });
     // OS num card que esta tela ainda não conhece (ex.: criado em outro aparelho): usa o nome guardado na OS
@@ -43,7 +47,7 @@ const Etapas = {
       if (o && !OS_STATUS[o.status] && /^e_/.test(o.status || '')) OS_STATUS[o.status] = { label: o.statusNome || 'Etapa', icon: 'tag', color: o.statusCor || '#64748B', pill: '', extra: true, oculto: true };
     });
     const vivo = k => OS_STATUS[k] && !OS_STATUS[k].oculto;
-    const padrao = ['analise', 'peca', 'servico', ...extras.map(x => x && x.id), 'concluido'].filter(vivo);
+    const padrao = ['analise', 'aprovacao', 'peca', 'servico', ...extras.map(x => x && x.id), 'concluido'].filter(vivo);
     const lista = ordem.filter((k, i) => padrao.includes(k) && ordem.indexOf(k) === i);
     padrao.forEach(k => { if (!lista.includes(k)) { const i = lista.indexOf('concluido'); if (i < 0) lista.push(k); else lista.splice(i, 0, k); } });
     OS_ATIVOS.splice(0, OS_ATIVOS.length, ...lista);
@@ -55,26 +59,19 @@ const Etapas = {
   },
   salvar(fn) {
     const e = this.cfg(); fn(e);
-    Store.s.etapas = { extras: e.extras, ocultas: e.ocultas, ordem: e.ordem };
+    Store.s.etapas = { extras: e.extras, ocultas: e.ocultas, ordem: e.ordem, nomes: e.nomes };
     Store.save(); this.aplicar();
   },
 };
-// Nome da forma de pagamento, incluindo o aparelho recebido na troca
-const nomeForma = f => FORMAS_PGTO[f] || (f === 'troca' ? 'Aparelho na troca' : f || '');
-// Garantias fixas da loja
-const GARANTIA_REPARO_DIAS = 90;    // reparos: padrão de 3 meses (a loja muda em Configurações e cada OS pode ter o seu)
-const GARANTIA_SEMINOVO_DIAS = 180; // aparelhos seminovos: sempre 6 meses
-// Tipo do produto à venda: celular seminovo, celular novo ou acessório
-const tipoProduto = p => p.seminovo ? 'seminovo' : p.tipoProduto === 'novo' ? 'novo' : 'acessorio';
-const ehCelular = p => tipoProduto(p) !== 'acessorio';
-// Papéis na equipe ("membro" é o nome antigo de atendente: continua valendo)
-const PAPEIS = { dono: 'Dono', atendente: 'Atendente', membro: 'Atendente', tecnico: 'Técnico', suporte: 'Suporte da plataforma' };
+// Nome da forma de pagamento
+const nomeForma = f => FORMAS_PGTO[f] || f || '';
+// Garantia padrão dos serviços: 3 meses (a oficina muda em Configurações e cada OS pode ter a sua)
+const GARANTIA_REPARO_DIAS = 90;
+// Papéis na equipe. No banco o mecânico continua com o papel "tecnico" ("membro" é o nome antigo de atendente)
+const PAPEIS = { dono: 'Dono', atendente: 'Atendente', membro: 'Atendente', tecnico: 'Mecânico', suporte: 'Suporte da plataforma' };
 const FORMAS_PGTO = { dinheiro: 'Dinheiro', pix: 'PIX', debito: 'Cartão de Débito', credito: 'Cartão de Crédito', transferencia: 'Transferência', outro: 'Outro' };
-const TIPOS_APARELHO = [
-  ['celular', 'Celular', 'phone'], ['tablet', 'Tablet', 'tablet'], ['notebook', 'Notebook', 'laptop'], ['computador', 'Computador', 'monitor'],
-  ['videogame', 'Video Game', 'gamepad'], ['smartwatch', 'Smartwatch', 'watch'], ['outro', 'Outro', 'cpu'],
-];
-const CHECKLIST_ITENS = ['Liga', 'Tela', 'Touch', 'Câmera traseira', 'Câmera frontal', 'Microfone', 'Alto-falante', 'Auricular', 'Carregamento', 'Wi-Fi', 'Bluetooth', 'Biometria / Face ID', 'Botões', 'Sinal / Chip', 'Vibração'];
+// Próxima revisão padrão (km e meses) por tipo; a oficina muda em Configurações
+const REVISAO_PADRAO = { carro: { km: 10000, meses: 12 }, moto: { km: 3000, meses: 3 } };
 
 function defaultDB() {
   return {
@@ -90,15 +87,16 @@ function defaultDB() {
       metaMensal: 50000,
       diasTrabalho: 26,
       garantiaDias: 90,
-      termosGarantia: 'A garantia cobre exclusivamente o serviço executado e as peças substituídas descritas nesta ordem. Não cobre: danos por queda, contato com líquidos, mau uso, aparelho aberto por terceiros, lacre de garantia violado ou danos na tela causados após a entrega.',
-      termosGarantiaSeminovo: 'Garantia de 6 meses contra defeitos de funcionamento do aparelho (placa, tela, bateria, câmeras, áudio e conectores), contados a partir da data da compra. Não cobre: quedas, trincas, contato com líquidos, mau uso, desgaste natural de bateria acima do esperado por uso intenso, aparelho aberto por terceiros, bloqueios por conta (iCloud/Google) feitos pelo comprador ou danos causados por acessórios não originais.',
-      termosGarantiaProduto: 'Celulares novos: garantia do fabricante a partir da data da compra. Acessórios: garantia contra defeito de fabricação pelo prazo indicado. A garantia não cobre mau uso, quedas, contato com líquidos, cabos rompidos ou dobrados, desgaste natural nem produto aberto ou violado. Guarde este recibo: ele é necessário para acionar a garantia.',
-      termosEntrada: 'Aparelhos não retirados em até 90 dias após a comunicação de conclusão serão considerados abandonados. A loja não se responsabiliza por dados, chips e cartões de memória deixados no aparelho.',
+      termosGarantia: 'A garantia cobre exclusivamente o serviço executado e as peças substituídas descritas nesta ordem, pelo prazo ou pela quilometragem indicados (o que vier primeiro). Não cobre: desgaste natural, mau uso, acidentes, falta de manutenção, uso de combustível ou lubrificante inadequados, nem intervenção de terceiros nas peças reparadas.',
+      termosGarantiaProduto: 'Peças e acessórios: garantia contra defeito de fabricação pelo prazo indicado. Não cobre instalação feita por terceiros, mau uso, acidentes nem desgaste natural. Guarde este recibo: ele é necessário para acionar a garantia.',
+      termosEntrada: 'Veículos não retirados em até 90 dias após o aviso de conclusão serão considerados abandonados. A oficina não se responsabiliza por objetos pessoais deixados no veículo que não estejam anotados nesta ordem.',
+      tiposVeiculo: ['carro', 'moto'],
+      garantiaKm: 0,
       taxaDebito: 1.5,
       taxaCredito: 3.5,
       exigirCaixa: false,
-      origens: ['Instagram', 'Indicação', 'Google', 'Passou na frente', 'WhatsApp', 'Facebook'],
-      tecnicos: [],
+      origens: ['Indicação', 'Google', 'Instagram', 'Passou na frente', 'WhatsApp', 'Facebook'],
+      tecnicos: [],       // mecânicos (nome e assinatura); o nome interno ficou do sistema original
     },
     seq: { os: 1, orc: 1, venda: 1 },
     clientes: [],
@@ -175,7 +173,7 @@ const Store = {
     return { id: Cloud.user.id, nome: Cloud.user.user_metadata?.nome || (Cloud.user.email || '').split('@')[0] };
   },
 
-  // Loja criada em outro idioma: termos de garantia e de entrada nascem nesse idioma
+  // Oficina criada em outro idioma: termos de garantia e de entrada nascem nesse idioma
   // (só troca o que ainda é o texto padrão em português; o que a loja escreveu fica como está)
   aplicarPadroesIdioma(id) {
     const pt = defaultDB().settings, novos = PADROES_IDIOMA[id]; if (!novos) return;
@@ -185,8 +183,9 @@ const Store = {
 
   /* ----- OS ----- */
   osById(id) { return this.db.os.find(o => o.id === id); },
-  osTotal(o) { return (Number(o.valor) || 0) - (Number(o.desconto) || 0); },
-  osCustoPecas(o) { return (o.pecas || []).reduce((s, p) => s + (p.custo || 0) * (p.qtd || 1), 0); },
+  // total = mão de obra + peças − desconto (OS com itens); OS simples: valor − desconto
+  osTotal(o) { return typeof OSItens !== 'undefined' ? OSItens.totais(o).total : (Number(o.valor) || 0) - (Number(o.desconto) || 0); },
+  osCustoPecas(o) { return typeof OSItens !== 'undefined' ? OSItens.totais(o).custo : (o.pecas || []).reduce((s, p) => s + (p.custo || 0) * (p.qtd || 1), 0); },
   saveOS(o) {
     if (!o.id) {
       o.id = uid(); o.numero = this.next('os'); o.criadoEm = nowISO();
@@ -194,6 +193,7 @@ const Store = {
       o.historico = [{ data: nowISO(), status: o.status, nota: 'OS aberta' }];
       this.db.os.push(o); this.log('OS criada', `#${o.numero}`);
     } else { const i = this.db.os.findIndex(x => x.id === o.id); this.db.os[i] = o; }
+    if (typeof OSItens !== 'undefined') OSItens.gravarTotais(o);
     this.save(); return o;
   },
   // Mantém o lançamento financeiro de uma OS paga em sincronia após edição
@@ -201,18 +201,19 @@ const Store = {
     const l = this.db.lancamentos.find(l => l.origem === 'os' && l.refId === o.id);
     if (!l) return;
     l.valor = this.osTotal(o); l.custo = this.osCustoPecas(o);
-    l.forma = o.pagamento?.forma || l.forma; l.taxa = this.taxa(l.forma, l.valor);
+    if (typeof OSItens !== 'undefined') Object.assign(l, OSItens.divisao(o));
+    l.forma = o.pagamento?.forma || l.forma; l.parcelas = o.pagamento?.parcelas || 1; l.taxa = this.taxa(l.forma, l.valor, l.parcelas, 'os');
   },
   setOSStatus(o, status, pagamento) {
     if (o.status === status) return;
     const antes = o.status;
     o.status = status;
-    // card criado pela loja: o nome e a cor vão junto, para a página de acompanhamento do cliente
+    // etapa criada pela oficina: o nome e a cor vão junto, para a página de acompanhamento do cliente
     const sx = OS_STATUS[status];
     if (sx && sx.extra) { o.statusNome = sx.label; o.statusCor = sx.color; } else { delete o.statusNome; delete o.statusCor; }
     o.historico = o.historico || [];
     o.historico.push(sx && sx.extra ? { data: nowISO(), status, nome: sx.label } : { data: nowISO(), status });
-    // quem finalizou a OS (conta na meta dele): quem marcou "Concluído" ou, se foi direto para "Pago", quem recebeu
+    // quem finalizou a OS (conta na meta dele): quem marcou "Pronto" ou, se foi direto para "Pago", quem recebeu
     const marcarQuem = () => { if (o.concluidoPor) return; const q = this.quem(); if (q.id) { o.concluidoPor = q.id; o.concluidoPorNome = q.nome; } };
     if (status === 'concluido') { if (!o.concluidoEm) o.concluidoEm = nowISO(); marcarQuem(); }
     if (status === 'pago') {
@@ -221,7 +222,8 @@ const Store = {
       if (!o.concluidoEm) o.concluidoEm = o.pagoEm;
       marcarQuem();
       o.entregueEm = o.entregueEm || nowISO();
-      this.addReceita({ origem: 'os', refId: o.id, desc: `OS #${o.numero}`, valor: this.osTotal(o), custo: this.osCustoPecas(o), forma: o.pagamento.forma, data: o.pagoEm });
+      this.addReceita({ origem: 'os', refId: o.id, desc: `OS #${o.numero}`, valor: this.osTotal(o), custo: this.osCustoPecas(o), forma: o.pagamento.forma, data: o.pagoEm,
+        parcelas: o.pagamento.parcelas || 1, ...(typeof OSItens !== 'undefined' ? OSItens.divisao(o) : {}) });
     } else if (antes === 'pago') {
       this.db.lancamentos = this.db.lancamentos.filter(l => !(l.origem === 'os' && l.refId === o.id));
       o.pagamento = null; o.pagoEm = null;
@@ -232,9 +234,15 @@ const Store = {
 
   /* ----- Garantia e acompanhamento ----- */
   garantiaInicio(o) { return o.concluidoEm || o.pagoEm || o.entregueEm || null; },
-  // prazo da garantia do reparo: o da própria OS; sem ele, o padrão da loja (Configurações)
+  // prazo da garantia do serviço: o da própria OS; sem ele, o padrão da oficina (Configurações)
   garantiaDiasOS(o) { const d = parseInt(o?.garantiaDias ?? this.s.garantiaDias, 10); return d >= 0 ? d : GARANTIA_REPARO_DIAS; },
   garantiaFim(o) { const i = this.garantiaInicio(o); return i ? addDays(i, this.garantiaDiasOS(o)) : null; },
+  // garantia por km (0 = sem limite de km): a da OS; sem ela, o padrão da oficina
+  garantiaKmOS(o) { const k = parseInt(o?.garantiaKm ?? this.s.garantiaKm, 10); return k > 0 ? k : 0; },
+  // atraso só conta antes de a OS ficar pronta (OS pronta ou paga nunca aparece como atrasada)
+  osAtrasada(o) {
+    return !!(o && !o.deleted && Store.s.usarPrevisao !== false && OS_ATIVOS.includes(o.status) && o.status !== 'concluido' && o.previsao && dayKey(o.previsao) < dayKey());
+  },
   // Token secreto do link público da OS (gerado na primeira vez que o link é usado)
   tokenOS(o) {
     if (!o.token) {
@@ -248,21 +256,25 @@ const Store = {
   linkOS(o) { return `${location.origin}/acompanhar/${this.tokenOS(o)}`; },
 
   /* ----- Financeiro ----- */
-  taxa(forma, valor) {
+  // taxa da maquininha: débito; crédito por número de parcelas (tabela separada para Serviços e para o Balcão)
+  taxa(forma, valor, parcelas = 1, origem = 'os') {
     if (forma === 'debito') return valor * (this.s.taxaDebito || 0) / 100;
-    if (forma === 'credito') return valor * (this.s.taxaCredito || 0) / 100;
+    if (forma === 'credito') return valor * (typeof Parcelas !== 'undefined' ? Parcelas.taxa(parcelas, origem) : (this.s.taxaCredito || 0)) / 100;
     return 0;
   },
   caixaAberto() { return this.db.caixas.find(c => !c.fechadoEm); },
-  addReceita({ origem, refId, desc, valor, custo = 0, forma = 'dinheiro', data = nowISO(), categoria }) {
-    if (typeof Cloud !== 'undefined' && Cloud.papel() === 'tecnico') return {}; // técnico não lança no financeiro (o banco também recusa)
+  addReceita({ origem, refId, desc, valor, custo = 0, forma = 'dinheiro', data = nowISO(), categoria, parcelas = 1, maoDeObra, pecas }) {
+    if (typeof Cloud !== 'undefined' && Cloud.papel() === 'tecnico') return {}; // mecânico não lança no financeiro (o banco também recusa)
     const cx = this.caixaAberto();
-    const l = { id: uid(), tipo: 'receita', origem, refId, desc, valor, custo, taxa: this.taxa(forma, valor), forma, data, categoria: categoria || (origem === 'os' ? 'Serviços' : origem === 'venda' ? 'Vendas' : 'Outros'), caixaId: cx ? cx.id : null };
+    const l = { id: uid(), tipo: 'receita', origem, refId, desc, valor, custo, taxa: this.taxa(forma, valor, parcelas, origem === 'os' ? 'os' : 'balcao'), forma, parcelas, data,
+      categoria: categoria || (origem === 'os' ? 'Serviços' : origem === 'venda' ? 'Balcão' : 'Outros'), caixaId: cx ? cx.id : null };
+    // OS: mão de obra e peças separados (relatório mão de obra × peças); balcão: tudo é peça/produto
+    if (origem === 'os') { l.maoDeObra = maoDeObra ?? valor; l.pecas = pecas ?? 0; } else if (origem === 'venda') { l.maoDeObra = 0; l.pecas = valor; }
     this.db.lancamentos.push(l); return l;
   },
-  // estoque = compra de mercadoria/aparelho: sai do caixa, mas o custo só entra no lucro quando o item é vendido
+  // estoque = compra de peças/mercadoria: sai do caixa, mas o custo só entra no lucro quando o item é vendido
   addDespesa({ desc, valor, forma = 'dinheiro', data = nowISO(), categoria = 'Despesas gerais', estoque = false }) {
-    if (typeof Cloud !== 'undefined' && Cloud.papel() === 'tecnico') return {}; // técnico não lança no financeiro (o banco também recusa)
+    if (typeof Cloud !== 'undefined' && Cloud.papel() === 'tecnico') return {}; // mecânico não lança no financeiro (o banco também recusa)
     const cx = this.caixaAberto();
     const l = { id: uid(), tipo: 'despesa', origem: 'manual', desc, valor, custo: 0, taxa: 0, forma, data, categoria, estoque, caixaId: cx ? cx.id : null };
     this.db.lancamentos.push(l); this.log('Despesa', `${desc} ${money(valor)}`); this.save(); return l;
@@ -276,8 +288,6 @@ const Store = {
     const ls = this.lancs().filter(filtro);
     const r = { receita: 0, custo: 0, taxa: 0, despesa: 0, compras: 0, os: 0, vendas: 0, troca: 0, qtd: ls.length };
     for (const l of ls) {
-      // aparelho recebido na troca não é dinheiro: não soma no faturamento, só abate o custo da venda (o lucro continua certo)
-      if (l.tipo === 'receita' && l.forma === 'troca') { r.troca += l.valor; r.custo += (l.custo || 0) - l.valor; continue; }
       if (l.tipo === 'receita') {
         r.receita += l.valor; r.custo += l.custo || 0; r.taxa += l.taxa || 0;
         if (l.origem === 'os') r.os += l.valor; else if (l.origem === 'venda') r.vendas += l.valor;
@@ -289,7 +299,7 @@ const Store = {
     r.margem = r.receita ? (r.lucro / r.receita) * 100 : 0;
     return r;
   },
-  ehCompraEstoque(l) { return l.estoque || /^Compra de (estoque|aparelhos)$/.test(l.categoria || ''); },
+  ehCompraEstoque(l) { return l.estoque || /^Compra de (estoque|peças)$/.test(l.categoria || ''); },
   resumoDia(d = new Date()) { const k = dayKey(d); return this.resumo(l => dayKey(l.data) === k); },
   resumoMes(d = new Date()) { const k = monthKey(d); return this.resumo(l => monthKey(l.data) === k); },
   metaDiaria() { return (Number(this.s.metaMensal) || 0) / (Number(this.s.diasTrabalho) || 26); },
@@ -333,3 +343,26 @@ const Store = {
 };
 
 Store.load();
+
+/* Parcelas no crédito: taxa da maquininha por número de parcelas e "sem juros até Nx",
+   separadas em Serviços (OS) e Peças/produtos (balcão). Store.s.parcelas = { os: { taxas: { 1: 3.5, 2: 4.9 }, semJurosAte: 3, max: 12 }, balcao: {...} } */
+const Parcelas = {
+  cfg(origem) {
+    const p = (Store.s.parcelas && Store.s.parcelas[origem === 'balcao' ? 'balcao' : 'os']) || {};
+    return { taxas: p.taxas || {}, semJurosAte: parseInt(p.semJurosAte, 10) || 1, max: Math.min(24, parseInt(p.max, 10) || 12) };
+  },
+  // taxa (%) da maquininha para n parcelas; sem taxa própria da parcela: a taxa de crédito geral
+  taxa(n, origem) {
+    const c = this.cfg(origem), v = c.taxas[n] ?? c.taxas[String(n)];
+    return v !== undefined && v !== '' && v !== null ? Number(v) || 0 : Number(Store.s.taxaCredito) || 0;
+  },
+  // campo "parcelas" no pagamento (só no crédito)
+  campo(box, forma, total, origem) {
+    if (!box) return;
+    if (forma !== 'credito') { box.innerHTML = ''; return; }
+    const c = this.cfg(origem), atual = parseInt($('select', box)?.value, 10) || 1;
+    box.innerHTML = field('Parcelas', `<select class="input" name="parcelas">${Array.from({ length: c.max }, (_, i) => i + 1).map(n => `<option value="${n}" ${n === atual ? 'selected' : ''}>${n}x ${money(total / n)}${n <= c.semJurosAte ? ' ' + t('sem juros') : ''}</option>`).join('')}</select>`)
+      + `<div class="xs muted" style="margin:-6px 0 10px">${t('Taxa da maquininha')}: ${String(this.taxa(atual, origem)).replace('.', ',')}% · ${t('sem juros até {n}x', { n: c.semJurosAte })}</div>`;
+    $('select', box).onchange = () => this.campo(box, forma, total, origem);
+  },
+};

@@ -1,6 +1,6 @@
 /* Follow-up de clientes (plano Pro): agenda de contatos com status, próximo contato e observações.
    Fica na mesma tela do Pós-venda, na aba "Agenda". */
-const FU_MOTIVOS = { pos_venda: 'Pós-venda', retorno: 'Retorno / revisão', garantia: 'Fim de garantia', orcamento: 'Orçamento pendente', retirada: 'Aparelho não retirado', aniversario: 'Aniversário', outro: 'Outro' };
+const FU_MOTIVOS = { pos_venda: 'Pós-venda', retorno: 'Retorno / revisão', garantia: 'Fim de garantia', orcamento: 'Orçamento pendente', retirada: 'Veículo não retirado', aniversario: 'Aniversário', outro: 'Outro' };
 const FU_STATUS = { pendente: ['A contatar', 'gold'], contatado: ['Contatado', 'green'], sem_resposta: ['Sem resposta', 'orange'], agendado: ['Agendado', 'blue'], concluido: ['Concluído', ''] };
 
 const Followup = {

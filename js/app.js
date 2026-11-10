@@ -1,24 +1,23 @@
 /* Shell do app: login, menu lateral e roteamento */
 const SESSION_KEY = 'oficina_session';
 
-const APP_VERSAO = '45';
+const APP_VERSAO = '1.3';
 // código da publicação: o build troca pelo commit publicado (sem build, fica assim e o aviso de versão nova fica desligado)
 const BUILD_ID = '__BUILD_ID__';
 const NAV = [
   ['Gestão Operacional', [
-    ['dashboard', 'Dashboard', 'dash'],
-    ['metas', 'Metas', 'star'],
-    ['bancada', 'Bancada', 'phone'],
-    ['os', 'Ordens de Serviço', 'file'],
-    ['fornecedor', 'Pedido fornecedor', 'truck'],
+    ['dashboard', 'Painel', 'dash'],
+    ['patio', 'Pátio', 'car'],
+    ['os', 'Ordens de serviço', 'file'],
     ['orcamentos', 'Orçamentos', 'card'],
+    ['metas', 'Metas', 'star'],
+    ['fornecedor', 'Fornecedores', 'truck'],
   ]],
-  ['Clientes & Vendas', [
+  ['Clientes e vendas', [
     ['clientes', 'Clientes', 'users'],
-    ['pecas', 'Peças', 'box'],
-    ['vendas', 'Venda de Produtos', 'bag'],
-    ['aparelhos', 'Aparelhos', 'devices'],
-    ['posvenda', 'Follow-up', 'chat'],
+    ['pecas', 'Peças e estoque', 'box'],
+    ['vendas', 'Balcão', 'bag'],
+    ['posvenda', 'Pós-venda', 'chat'],
     ['vitrine', 'Vitrine', 'tag'],
   ]],
   ['Administrativo', [
@@ -32,12 +31,12 @@ const NAV = [
 ];
 // Telas que dependem de um recurso do plano (sem ele: tela de upgrade; os dados continuam guardados)
 const ROTA_RECURSO = { metas: 'metas', posvenda: 'followup', vitrine: 'vitrine' };
-// Módulos que a loja pode desligar (plano Pro ou maior). Os essenciais (painel, OS, clientes, plano, configurações) ficam sempre.
-const MODULOS = [['bancada', 'Bancada'], ['orcamentos', 'Orçamentos'], ['fornecedor', 'Pedido fornecedor'], ['pecas', 'Peças / estoque'], ['vendas', 'Venda de produtos'], ['aparelhos', 'Aparelhos'],
-  ['posvenda', 'Follow-up'], ['vitrine', 'Vitrine'], ['metas', 'Metas'], ['servicos', 'Serviços'], ['financeiro', 'Financeiro'], ['caixa', 'Caixa'], ['relatorios', 'Relatórios']];
+// Módulos que a oficina pode desligar (plano Pro). Os essenciais (painel, OS, clientes, plano, configurações) ficam sempre.
+const MODULOS = [['patio', 'Pátio'], ['orcamentos', 'Orçamentos'], ['fornecedor', 'Fornecedores'], ['pecas', 'Peças e estoque'], ['vendas', 'Balcão'],
+  ['posvenda', 'Pós-venda'], ['vitrine', 'Vitrine'], ['metas', 'Metas'], ['servicos', 'Serviços'], ['financeiro', 'Financeiro'], ['caixa', 'Caixa'], ['relatorios', 'Relatórios']];
 // Telas escondidas por papel (o banco também bloqueia os dados)
 const ROTA_OCULTA = {
-  tecnico: ['vendas', 'aparelhos', 'financeiro', 'caixa', 'relatorios', 'metas', 'vitrine'],
+  tecnico: ['vendas', 'financeiro', 'caixa', 'relatorios', 'metas', 'vitrine', 'fornecedor'],
   atendente: ['financeiro', 'relatorios'],
 };
 
@@ -60,11 +59,12 @@ const App = {
     }
     this.vigiarVersao();
     if (Cloud.enabled) {
-      // aparência guardada da última loja (evita piscar a identidade errada)
+      // aparência guardada da última oficina (evita piscar a identidade errada)
       try { const l = JSON.parse(localStorage.getItem('oficina_loja')); if (l?.tema) Tema.aplicar(l.tema, { favicon: false }); } catch {}
       $('#app').innerHTML = `<div class="login">${Tema.logoHTML('login-logo', 'width:160px')}</div>`;
       try { await Cloud.init(); } catch (e) { console.warn(e); }
-      if (!Cloud.user && await Cloud.hostDesconhecido()) return this.lojaNaoEncontrada(); // quem já está logado nunca é barrado
+      // endereço de oficina que não existe: avisa (logado ou não). Logado ganha o botão para a própria oficina
+      if (await Cloud.hostDesconhecido()) return this.lojaNaoEncontrada();
       if (Cloud.user && await this.bootCloud() === 'outra-loja') return;
     }
     this.render();
@@ -78,9 +78,9 @@ const App = {
   async verComunicados() {
     if (!Cloud.enabled || !Cloud.user || !Cloud.loja || this._vendoCom || Date.now() - (this._comEm || 0) < 60000) return;
     this._comEm = Date.now();
-    // "só lojas em português/espanhol" = idioma da loja (o da tela só quando a loja não tem)
+    // "só lojas em português/espanhol" = idioma da oficina (o da tela só quando a oficina não tem)
     const idioma = Cloud.loja.tema?.idioma || I18N.idioma;
-    // versão Kiwify (português) ou Hotmart (espanhol) conforme a loja; banco sem a etapa 17: versão única
+    // versão Kiwify (português) ou Hotmart (espanhol) conforme a oficina; banco sem a etapa 17: versão única
     let r; try {
       r = await Cloud.sb.rpc('meus_comunicados', { p_idioma: idioma, p_loja: Cloud.loja.id });
       if (r.error) r = await Cloud.sb.rpc('meus_comunicados', { p_idioma: idioma });
@@ -99,21 +99,29 @@ const App = {
     this._vendoCom = false;
   },
 
-  lojaNaoEncontrada() {
+  async lojaNaoEncontrada() {
     Tema.aplicar(null);
     // sem idioma escolhido neste endereço: segue o idioma do aparelho (português, a não ser que seja espanhol)
     if (!I18N.escolhido()) { I18N.idioma = /^es/i.test(navigator.language || '') ? 'es' : 'pt'; document.documentElement.lang = I18N.locale(); }
-    document.title = t('Loja não encontrada');
+    document.title = t('Oficina não encontrada');
     const principal = 'https://app.' + PLATAFORMA.dominio;
+    // logado: o botão leva para a oficina dele (endereço próprio, se tiver)
+    let minha = null;
+    if (Cloud.user) try {
+      await Cloud.carregarLoja();
+      const id = Cloud.lojas?.[0]?.id;
+      if (id) { const r = await Cloud.sb.from('lojas').select('slug').eq('id', id).maybeSingle(); minha = r.data?.slug ? `https://${r.data.slug}.${PLATAFORMA.dominio}` : principal; }
+    } catch {}
     $('#app').innerHTML = `<div class="login"><div class="login-box" style="text-align:center">
       ${Tema.logoHTML('login-logo', 'width:140px')}
-      <h2 style="margin:16px 0 8px">${t('Loja não encontrada')}</h2>
-      <p class="muted">${t('O endereço {h} não pertence a nenhuma loja. Confira se digitou certo.', { h: `<b>${esc(location.hostname)}</b>` })}</p>
-      <a class="btn primary block" style="margin-top:18px" href="${principal}">${t('Entrar na Oficina Simples')} ${icon('arrowRight')}</a>
+      <h2 style="margin:16px 0 8px">${t('Oficina não encontrada')}</h2>
+      <p class="muted">${t('O endereço {h} não pertence a nenhuma oficina. Confira se digitou certo.', { h: `<b>${esc(location.hostname)}</b>` })}</p>
+      ${minha ? `<a class="btn primary block" style="margin-top:18px" href="${esc(minha)}">${t('Ir para a minha oficina')} ${icon('arrowRight')}</a>`
+        : `<a class="btn primary block" style="margin-top:18px" href="${principal}">${t('Entrar na Oficina Simples')} ${icon('arrowRight')}</a>`}
     </div></div>`;
   },
 
-  // Entrou com uma conta que não é da loja deste endereço: sai e mostra o endereço certo
+  // Entrou com uma conta que não é da oficina deste endereço: sai e mostra o endereço certo
   async contaDeOutraLoja() {
     let destino = 'https://app.' + PLATAFORMA.dominio;
     try { const r = await Cloud.sb.from('lojas').select('slug').eq('id', Cloud.lojas[0].id).maybeSingle(); if (r.data?.slug) destino = `https://${r.data.slug}.${PLATAFORMA.dominio}`; } catch {}
@@ -122,21 +130,21 @@ const App = {
     this._temaLogin = false;
     $('#app').innerHTML = `<div class="login"><div class="login-box" style="text-align:center">
       ${Tema.logoHTML('login-logo', 'width:120px')}
-      <h2 style="margin:16px 0 8px">${t('Esta conta é de outra loja')}</h2>
-      <p class="muted">${t('O login {e} não faz parte da loja deste endereço ({h}). Entre pelo endereço da sua loja.', { e: `<b>${esc(email)}</b>`, h: `<b>${esc(nomeHost)}</b>` })}</p>
-      <a class="btn primary block" style="margin-top:18px" href="${esc(destino)}">${t('Ir para a minha loja')} ${icon('arrowRight')}</a>
+      <h2 style="margin:16px 0 8px">${t('Esta conta é de outra oficina')}</h2>
+      <p class="muted">${t('O login {e} não faz parte da oficina deste endereço ({h}). Entre pelo endereço da sua oficina.', { e: `<b>${esc(email)}</b>`, h: `<b>${esc(nomeHost)}</b>` })}</p>
+      <a class="btn primary block" style="margin-top:18px" href="${esc(destino)}">${t('Ir para a minha oficina')} ${icon('arrowRight')}</a>
       <button class="btn block mt" id="ol-outra">${t('Entrar com outra conta')}</button>
     </div></div>`;
     $('#ol-outra').onclick = () => { $('#app').innerHTML = ''; this.render(); };
     return 'outra-loja';
   },
 
-  // Depois do login: descobre a loja do usuário e liga a sincronização
+  // Depois do login: descobre a oficina do usuário e liga a sincronização
   async bootCloud(enviarLocais = false) {
     try {
       await Cloud.carregarLoja();
       Cloud.sincronizarEmail(); // se o e-mail de login mudou, atualiza o da equipe (não espera)
-      // endereço de uma loja (<nome>.<dominio>) só abre para quem é dessa loja
+      // endereço de uma oficina (<nome>.<dominio>) só abre para quem é dessa oficina
       const h = Cloud.lojas?.length ? await Cloud.lojaDoHost() : null;
       if (h && h !== 'erro' && !Cloud.lojas.some(l => l.id === h.id)) return this.contaDeOutraLoja();
       if (Cloud.loja) { await Cloud.carregarAssinatura(); await Cloud.carregarTema(); Tema.aplicar(Cloud.loja.tema, { favicon: false }); }
@@ -146,7 +154,7 @@ const App = {
       this._assTimer = setInterval(async () => { const antes = JSON.stringify(Cloud.assinatura()); await Cloud.carregarAssinatura(); if (JSON.stringify(Cloud.assinatura()) !== antes) { this.cacheLoja(); if ($('.shell')) { $('.shell')?.remove(); this.render(); } } }, 10 * 60000);
     }
     catch (e) {
-      // offline: usa a loja guardada no aparelho
+      // offline: usa a oficina guardada no aparelho
       try { const l = JSON.parse(localStorage.getItem('oficina_loja')); if (l && l.id === Store.db.lojaId && l.user?.id === Cloud.user.id) { Cloud.loja = l; Tema.aplicar(l.tema, { favicon: false }); } } catch {}
     }
     if (Cloud.loja) Cloud.start(enviarLocais).then(() => this.garantirMoeda()).catch(e => console.warn(e));
@@ -163,12 +171,20 @@ const App = {
     if (m !== 'BRL') App.refresh();
   },
 
-  // depois de criar a loja ou entrar numa equipe: assinatura (aviso do teste, recursos do plano) e tema antes de desenhar
+  // depois de criar a oficina ou entrar numa equipe: assinatura (aviso do teste, recursos do plano) e tema antes de desenhar
   async prepararLoja() {
     await Cloud.carregarAssinatura(); await Cloud.carregarTema(); Tema.aplicar(Cloud.loja.tema, { favicon: false });
     this.cacheLoja();
     await Cloud.start(false); // loja nova nasce vazia: nada do que estiver guardado neste aparelho vai para ela
     await this.garantirMoeda(true); // loja nova: moeda pelo idioma do cadastro (espanhol = pesos)
+  },
+
+  // oficina nova: nome, tipos de veículo atendidos e o catálogo de serviços desses tipos
+  prepararOficinaNova(nome, tipos) {
+    const ts = (tipos || []).filter(x => TIPOS_VEICULO[x]);
+    Store.s.loja = nome; Store.s.tiposVeiculo = ts.length ? ts : ['carro'];
+    semearCatalogo(Store.s.tiposVeiculo);
+    Store.save();
   },
 
   cacheLoja() { localStorage.setItem('oficina_loja', JSON.stringify({ ...Cloud.loja, user: { id: Cloud.user.id, email: Cloud.user.email } })); },
@@ -224,6 +240,7 @@ const App = {
       return this.renderLogin();
     }
     this.parseHash();
+    if (this.route === 'bancada') this.route = 'patio';   // endereço antigo
     Etapas.aplicar();
     if (!Pages[this.route] || !this.rotaVisivel(this.route)) this.route = 'dashboard';
     if (!$('.shell')) this.renderShell();
@@ -243,7 +260,7 @@ const App = {
   /* ---------- Acesso por papel e por plano ---------- */
   rotaVisivel(r) {
     if ((ROTA_OCULTA[Cloud.papel()] || []).includes(r)) return false;
-    // módulo desligado pela loja (só vale com o recurso do plano)
+    // módulo desligado pela oficina (só vale com o recurso do plano)
     if (Store.s.modulos?.[r] === false && Cloud.temRecurso('modulos_personalizaveis')) return false;
     return true;
   },
@@ -258,7 +275,7 @@ const App = {
     const el = $('#aviso-plano'); if (!el) return;
     const a = Cloud.assinatura();
     // acesso de suporte da plataforma (painel admin): sempre visível e somente leitura
-    const sup = Cloud.papel() === 'suporte' ? `<div class="aviso-plano red">${icon('shield', 'sm')}<span class="grow"><b>Modo suporte</b> (somente leitura) na loja ${esc(Cloud.loja?.nome || '')}. O acesso fica registrado.</span><button class="btn sm" onclick="App.sairSuporte()">Sair</button></div>` : '';
+    const sup = Cloud.papel() === 'suporte' ? `<div class="aviso-plano red">${icon('shield', 'sm')}<span class="grow"><b>Modo suporte</b> (somente leitura) na oficina ${esc(Cloud.loja?.nome || '')}. O acesso fica registrado.</span><button class="btn sm" onclick="App.sairSuporte()">Sair</button></div>` : '';
     const ped = Cloud.pedidosEquipe ? `<div class="aviso-plano orange">${icon('userPlus', 'sm')}<span class="grow"><b>${Cloud.pedidosEquipe} pedido(s)</b> para entrar na equipe aguardando sua aprovação.</span><a class="btn sm" href="#/config" onclick="setTimeout(() => Pages.config.abrirTopico('cf-membros'), 400)">Ver</a></div>` : '';
     const html = sup + ped + (a ? Planos.aviso(a) : '');
     el.innerHTML = html; el.classList.toggle('hidden', !html);
@@ -325,9 +342,9 @@ const App = {
     location.reload();
   },
 
-  // WhatsApp do suporte da plataforma, já com a loja e o e-mail de quem está pedindo ajuda
+  // WhatsApp do suporte da plataforma, já com a oficina e o e-mail de quem está pedindo ajuda
   linkSuporte() {
-    return waLink(PLATAFORMA.suporteWhats, t('Olá! Preciso de ajuda com o sistema. Loja: {loja} ({email}).', { loja: Store.s.loja || '', email: this.userEmail() || '' }));
+    return waLink(PLATAFORMA.suporteWhats, t('Olá! Preciso de ajuda com o sistema. Oficina: {loja} ({email}).', { loja: Store.s.loja || '', email: this.userEmail() || '' }));
   },
   updateBrand() {
     const s = Store.s; const ini = esc((s.responsavel || s.loja || 'R')[0].toUpperCase());
@@ -375,14 +392,14 @@ const App = {
   },
 
   async syncAgora() {
-    toast({ ok: 'Tudo sincronizado com a nuvem', sync: 'Sincronizando...', offline: 'Sem internet: os dados estão salvos no aparelho e serão enviados quando a conexão voltar', erro: 'Tentando sincronizar novamente...' }[Cloud.status] || 'Sincronizando...', Cloud.status === 'erro');
+    toast({ ok: 'Tudo sincronizado com a nuvem', sync: 'Sincronizando...', offline: 'Sem internet: os dados estão salvos neste dispositivo e serão enviados quando a conexão voltar', erro: 'Tentando sincronizar novamente...' }[Cloud.status] || 'Sincronizando...', Cloud.status === 'erro');
     try { await Cloud.push(); await Cloud.pull(); } catch {}
   },
 
   updateNav() {
     $$('#nav a').forEach(a => a.classList.toggle('active', a.dataset.r === this.route));
     const counts = {
-      bancada: Store.db.os.filter(o => !o.deleted && OS_ATIVOS.includes(o.status)).length,
+      patio: Store.db.os.filter(o => !o.deleted && OS_ATIVOS.includes(o.status)).length,
       orcamentos: Store.db.orcamentos.filter(o => !o.deleted && o.status === 'pendente').length,
       pecas: Store.db.pecas.filter(p => !p.deleted && p.qtd <= (p.minimo || 0)).length,
       posvenda: Cloud.temRecurso('followup') ? PosVenda.pendentes() + Followup.paraHoje().length : 0,
@@ -405,7 +422,7 @@ const App = {
     if (Cloud.enabled) {
       if (['erro', 'offline', 'sync'].includes(Cloud.status) && !(await confirmDialog('Há alterações que ainda não foram enviadas para a nuvem e serão perdidas se sair agora. Sair mesmo assim?', { danger: true, ok: 'Sair' }))) return;
       await Cloud.signOut();
-      this._temaLogin = false; this._temaHost = null; // busca de novo a aparência da loja do endereço
+      this._temaLogin = false; this._temaHost = null; // busca de novo a aparência da oficina do endereço
     } else localStorage.removeItem(SESSION_KEY);
     location.hash = ''; $('#app').innerHTML = ''; this.render();
   },
@@ -416,7 +433,7 @@ const App = {
     const qs = new URLSearchParams(location.search);
     if (!modo) modo = qs.get('cadastro') ? 'criar' : 'entrar';
     const criar = modo === 'criar';
-    // tela de entrada com a cara da loja do endereço (guardada no aparelho para abrir já certa)
+    // tela de entrada com a cara da oficina do endereço (guardada no aparelho para abrir já certa)
     if (!this._temaHost && !Cloud.user) try { const c = JSON.parse(localStorage.getItem(TEMA_HOST_KEY)); if (c?.host === location.host && c.tema) { this._temaHost = c.tema; Tema.aplicar(c.tema); } } catch {}
     this.marcaDaPlataforma();
     if (!Cloud.user) document.title = this._temaHost ? Tema.nome(PLATAFORMA.nome) : PLATAFORMA.nome;
@@ -427,7 +444,7 @@ const App = {
           ${Tema.logoHTML('login-logo')}
           ${Tema.atual ? '' : `<div class="center bold" style="font-size:26px;margin:-6px 0 10px">${PLATAFORMA.marcaTexto()}</div>`}
           <h1>${criar ? 'Criar <span class="gold">conta</span>' : 'Bem-vindo de <span class="gold">volta</span>'}</h1>
-          <p class="muted" style="margin:0 0 20px">${criar ? 'Crie sua conta para acessar o sistema de qualquer aparelho.' : 'Acesse sua conta para gerenciar sua assistência.'}</p>
+          <p class="muted" style="margin:0 0 20px">${criar ? 'Crie sua conta para usar o sistema no celular e no computador.' : 'Acesse sua conta para gerenciar sua oficina.'}</p>
           <div class="tabs mb"><button type="button" data-m="entrar" class="${criar ? '' : 'on'}" style="flex:1">Entrar</button><button type="button" data-m="criar" class="${criar ? 'on' : ''}" style="flex:1">Criar conta</button></div>
           ${criar ? field('Idioma do sistema', `<div class="idioma-escolha" data-no-i18n>${Object.entries({ pt: '🇧🇷 Português', es: '🌎 Español' }).map(([id, nome]) => `<button type="button" class="btn ${I18N.idioma === id ? 'outline-gold on' : ''}" data-idioma="${id}">${nome}</button>`).join('')}</div>`) : ''}
           ${field('E-mail', inputIcon('mail', 'name="email" type="email" required placeholder="seu@email.com" autocomplete="username"'))}
@@ -483,34 +500,40 @@ const App = {
     };
   },
 
-  // Login, cadastro e criação da loja mostram a marca da plataforma: nunca a da última loja usada
-  // neste aparelho (ex.: depois de sair da loja). Só o endereço próprio de uma loja mostra a marca dela.
+  // Login, cadastro e criação da oficina mostram a marca da plataforma: nunca a da última oficina usada
+  // neste aparelho (ex.: depois de sair da oficina). Só o endereço próprio de uma oficina mostra a marca dela.
   marcaDaPlataforma() {
     if (Tema.atual && Tema.atual !== this._temaHost) Tema.aplicar(null, { favicon: false });
   },
 
-  // Usuário logado mas ainda sem loja: cria uma nova ou entra com código de convite
+  // Usuário logado mas ainda sem oficina: cria uma nova ou entra com código de convite
   renderOnboarding() {
     this.marcaDaPlataforma();
     $('#app').innerHTML = `
       <div class="login"><div class="login-box">
         ${Tema.logoHTML('login-logo', 'width:150px')}
         <h1>Quase <span class="gold">lá!</span></h1>
-        <p class="muted" style="margin:0 0 20px">Logado como <b>${esc(Cloud.user.email)}</b>. Crie sua loja ou entre na equipe de uma loja existente.</p>
+        <p class="muted" style="margin:0 0 20px">Logado como <b>${esc(Cloud.user.email)}</b>. Crie sua oficina ou entre na equipe de uma oficina.</p>
         <div class="card mb" style="border-color:rgba(var(--gold-rgb), .5);background:var(--gold-soft)">
           <div id="ob-pendentes"></div>
           <b>${icon('users', 'sm')} É funcionário?</b>
-          <p class="small" style="margin:6px 0 10px">Não crie uma loja. Peça ao dono para adicionar o e-mail <b>${esc(Cloud.user.email)}</b> em <b>Configurações → Equipe</b> e toque abaixo.</p>
+          <p class="small" style="margin:6px 0 10px">Não crie uma oficina. Peça ao dono para adicionar o e-mail <b>${esc(Cloud.user.email)}</b> em <b>Configurações → Equipe</b> e toque abaixo.</p>
           <button class="btn primary block" id="ob-retry">${icon('repeat')} Já fui adicionado, entrar</button>
         </div>
         <form class="card mb" id="ob-criar">
-          <h3>${icon('bag', 'sm')} Sou o dono: criar <span class="gold">loja</span></h3>
-          ${field('Nome da loja', `<input class="input" name="nome" value="" placeholder="Ex: Assistência do João" required>`)}
-          <button class="btn primary block">${icon('check')} Criar loja</button>
+          <h3>${icon('wrench', 'sm')} Sou o dono: criar <span class="gold">oficina</span></h3>
+          ${field('Nome da oficina', `<input class="input" name="nome" value="" placeholder="Ex: Oficina do João" required>`)}
+          <div class="field"><label>Que veículos você atende?</label>
+            <div class="grid grid-3 ob-tipos" role="radiogroup" aria-label="Que veículos você atende?">
+              <label class="chip-opt ob-tipo"><input type="radio" name="tipos" value="carro" checked>${icon('car')}<span>Carro</span></label>
+              <label class="chip-opt ob-tipo"><input type="radio" name="tipos" value="moto">${icon('moto')}<span>Moto</span></label>
+              <label class="chip-opt ob-tipo"><input type="radio" name="tipos" value="carro,moto">${icon('car')}<span>Os dois</span></label>
+            </div><div class="xs muted">Dá para mudar depois em Configurações.</div></div>
+          <button class="btn primary block">${icon('check')} Criar oficina</button>
         </form>
         <form class="card mb" id="ob-entrar">
           <h3>${icon('users', 'sm')} Entrar com <span class="gold">código de convite</span></h3>
-          <p class="small muted" style="margin-top:0">Peça o código ao dono da loja (Configurações → Equipe).</p>
+          <p class="small muted" style="margin-top:0">Peça o código ao dono da oficina (Configurações → Equipe).</p>
           ${field('Código', '<input class="input" name="codigo" placeholder="Ex: A1B2C3D4" required style="text-transform:uppercase;letter-spacing:.15em">')}
           <button class="btn outline-gold block">${icon('arrowRight')} Entrar na equipe</button>
         </form>
@@ -524,25 +547,25 @@ const App = {
     };
     $('#ob-criar').onsubmit = async e => {
       e.preventDefault(); const f = readForm(e.target);
-      const bt = e.target.querySelector('button'); if (bt?.disabled) return; // toque duplo não cria duas lojas
+      const bt = e.target.querySelector('button.primary'); if (bt?.disabled) return; // toque duplo não cria duas oficinas
       if (bt) bt.disabled = true;
       try {
         await Cloud.criarLoja(f.nome);
         await this.prepararLoja();
-        Store.s.loja = f.nome; Store.save();
+        App.prepararOficinaNova(f.nome, String(f.tipos || 'carro').split(','));
         if (I18N.idioma !== 'pt') Store.aplicarPadroesIdioma(I18N.idioma);
-        toast('Loja criada!'); this.render();
+        toast('Oficina criada!'); this.render();
       } catch (err) { toast(err.message, true); } finally { if (bt) bt.disabled = false; }
     };
     $('#ob-entrar').onsubmit = async e => {
       e.preventDefault(); const f = readForm(e.target);
       try {
         const locais = !Store.db.lojaId && (Store.db.os.length || Store.db.clientes.length || Store.db.vendas.length);
-        if (locais && await confirmDialog('Este aparelho tem dados que não estão na nuvem. Baixar um backup deles antes de entrar na equipe?', { ok: 'Baixar backup' })) Pages.config.backup();
+        if (locais && await confirmDialog('Este dispositivo tem dados que não estão na nuvem. Baixar um backup deles antes de entrar na equipe?', { ok: 'Baixar backup' })) Pages.config.backup();
         const r = await Cloud.entrarNaLoja(f.codigo);
         if (r.situacao === 'membro' && await Cloud.carregarLoja()) { await this.prepararLoja(); toast(`Você entrou na equipe de ${Cloud.loja.nome}`); return this.render(); }
         this.renderOnboarding();
-        toast(`Pedido enviado para ${r.nome || 'a loja'}. Aguarde o dono aprovar.`);
+        toast(t('Pedido enviado para {n}. Aguarde o dono aprovar.', { n: r.nome || t('a oficina') }));
       } catch (err) { toast(err.message, true); }
     };
   },
@@ -554,10 +577,15 @@ const App = {
         <form class="login-box" id="login-form" autocomplete="on">
           ${Tema.marcaHTML('login-logo')}
           <h1>${first ? 'Criar <span class="gold">acesso</span>' : 'Bem-vindo de <span class="gold">volta</span>'}</h1>
-          <p class="muted" style="margin:0 0 24px">${first ? 'Primeiro acesso: defina o e-mail e a senha do painel.' : 'Acesse sua conta para gerenciar sua assistência.'}</p>
+          <p class="muted" style="margin:0 0 24px">${first ? 'Primeiro acesso: defina o e-mail e a senha do painel.' : 'Acesse sua conta para gerenciar sua oficina.'}</p>
           ${field('E-mail', inputIcon('mail', `name="email" type="email" required placeholder="seu@email.com" autocomplete="username" value="${esc(Store.db.auth?.email || '')}"`))}
           ${field('Senha', `<div class="input-icon">${icon('lock')}<input class="input" name="senha" type="password" required minlength="4" placeholder="••••••••" autocomplete="${first ? 'new-password' : 'current-password'}"><button type="button" class="icon-btn" style="position:absolute;right:4px;top:3px" onclick="const i=this.previousElementSibling;i.type=i.type==='password'?'text':'password'">${icon('eye')}</button></div>`)}
           ${first ? field('Confirmar senha', inputIcon('lock', 'name="senha2" type="password" required minlength="4" placeholder="••••••••" autocomplete="new-password"')) : ''}
+          ${first ? field('Nome da oficina', '<input class="input" name="nomeOficina" placeholder="Ex: Oficina do João">') + `<div class="field"><label>Que veículos você atende?</label>
+            <div class="grid grid-3 ob-tipos" role="radiogroup" aria-label="Que veículos você atende?">
+              <label class="chip-opt ob-tipo"><input type="radio" name="tipos" value="carro" checked>${icon('car')}<span>Carro</span></label>
+              <label class="chip-opt ob-tipo"><input type="radio" name="tipos" value="moto">${icon('moto')}<span>Moto</span></label>
+              <label class="chip-opt ob-tipo"><input type="radio" name="tipos" value="carro,moto">${icon('car')}<span>Os dois</span></label></div></div>` : ''}
           <button class="btn primary block" style="margin-top:8px;min-height:54px;font-size:17px">${first ? 'Criar e acessar' : 'Acessar Painel'} ${icon('arrowRight')}</button>
           ${first ? '' : `<p class="center small" style="margin-top:18px"><a href="#" id="forgot">Esqueceu a senha?</a></p>`}
           <div class="foot">© ${new Date().getFullYear()} <span class="gold">${PLATAFORMA.nome}</span>. Todos os direitos reservados.</div>
@@ -569,7 +597,7 @@ const App = {
       if (first) {
         if (f.senha !== f.senha2) return toast('As senhas não conferem', true);
         Store.db.auth = { email: f.email.toLowerCase(), hash: await sha256(f.senha) };
-        Store.save();
+        this.prepararOficinaNova(f.nomeOficina || 'Minha oficina', String(f.tipos || 'carro').split(','));
       } else {
         const ok = f.email.toLowerCase() === Store.db.auth.email && (await sha256(f.senha)) === Store.db.auth.hash;
         if (!ok) return toast('E-mail ou senha incorretos', true);
@@ -582,7 +610,7 @@ const App = {
       e.preventDefault();
       openModal({
         title: 'Recuperar acesso', icon: 'lock',
-        body: `<p class="muted" style="margin-top:0">Os dados ficam salvos apenas neste aparelho. Para redefinir a senha, é preciso apagar o acesso atual — <b class="gold">seus dados (OS, clientes, estoque) são mantidos</b>.</p>`,
+        body: `<p class="muted" style="margin-top:0">Os dados ficam salvos apenas neste dispositivo. Para redefinir a senha, é preciso apagar o acesso atual — <b class="gold">seus dados (OS, clientes, estoque) são mantidos</b>.</p>`,
         foot: `<button class="btn" data-close>Cancelar</button><button class="btn primary" id="rst">Redefinir senha</button>`,
         onMount: (el, m) => { $('#rst', el).onclick = () => { Store.db.auth = null; Store.save(); m.close(); this.render(); }; },
       });

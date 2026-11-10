@@ -24,7 +24,7 @@ const FinPage = {
     const aReceber = Store.db.os.filter(o => !o.deleted && OS_ATIVOS.includes(o.status)).reduce((s, o) => s + Store.osTotal(o), 0);
 
     main.innerHTML = `
-      ${pageHead('chart', 'Financeiro', 'Receitas, despesas e lucro da assistência.')}
+      ${pageHead('chart', 'Financeiro', 'Receitas, despesas e lucro da oficina.')}
       <div class="page-actions">
         <button class="btn primary" onclick="FinPage.lancar('despesa')">${icon('minus')} Nova despesa</button>
         <button class="btn outline-gold" onclick="FinPage.lancar('receita')">${icon('plus')} Nova receita</button>
@@ -38,14 +38,14 @@ const FinPage = {
       <div class="hero mb">
         <div class="small muted bold" style="letter-spacing:.12em">LUCRO LÍQUIDO</div>
         <div class="big ${r.lucro >= 0 ? 'green' : 'red'}">${money(r.lucro)}</div>
-        <div class="row wrap mt"><span class="pill green">Margem ${r.margem.toFixed(1)}%</span><span class="pill gold">A receber em bancada ${money(aReceber)}</span></div>
+        <div class="row wrap mt"><span class="pill green">Margem ${r.margem.toFixed(1)}%</span><span class="pill gold">A receber no pátio ${money(aReceber)}</span></div>
       </div>
       <div class="grid grid-2 mb">
         <div class="stat"><div class="label">${icon('trending', 'sm')} Faturamento</div><div class="value gold">${money(r.receita)}</div><div class="sub">OS ${money(r.os)} · Vendas ${money(r.vendas)}</div></div>
         <div class="stat"><div class="label">${icon('box', 'sm')} Custo de peças/produtos</div><div class="value red">${money(r.custo)}</div></div>
         <div class="stat"><div class="label">${icon('card', 'sm')} Taxas de cartão</div><div class="value red">${money(r.taxa)}</div></div>
         <div class="stat"><div class="label">${icon('minus', 'sm')} Despesas</div><div class="value red">${money(r.despesa)}</div></div>
-        ${r.compras ? `<div class="stat" style="grid-column:1/-1"><div class="label">${icon('box', 'sm')} Compras de estoque e aparelhos</div><div class="value">${money(r.compras)}</div><div class="sub">Saíram do caixa, mas não reduzem o lucro agora: o custo entra quando o item é vendido.</div></div>` : ''}
+        ${r.compras ? `<div class="stat" style="grid-column:1/-1"><div class="label">${icon('box', 'sm')} Compras de peças e estoque</div><div class="value">${money(r.compras)}</div><div class="sub">Saíram do caixa, mas não reduzem o lucro agora: o custo entra quando o item é vendido.</div></div>` : ''}
       </div>
       <div class="grid grid-auto mb">
         <div class="card"><h3>Recebido por <span class="gold">forma</span></h3>${Object.entries(porForma).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<div class="kv"><span class="k">${nomeForma(k)}</span><span class="v">${money(v)}</span></div>`).join('') || '<p class="small muted">Sem receitas no período.</p>'}</div>
