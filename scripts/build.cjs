@@ -40,7 +40,7 @@ const copiar = rel => {
 
 const publicos = [
   ...fs.readdirSync(raiz).filter(f => f.endsWith('.html')),
-  'manifest.webmanifest', 'sw.js', 'css', 'js', 'assets',
+  'manifest.webmanifest', 'sw.js', 'css', 'js', 'assets', 'landing',
 ];
 publicos.forEach(copiar);
 

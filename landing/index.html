@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Oficina Simples · sistema para oficina de carro e moto</title>
+  <meta name="description" content="OS no celular, pátio, orçamento pelo WhatsApp, link para o cliente acompanhar, garantia em PDF e lembrete de revisão. Para oficinas de carro e moto.">
+  <meta name="theme-color" content="#FFFFFF">
+  <link rel="icon" href="/assets/os-32.png">
+  <link rel="apple-touch-icon" href="/assets/os-180.png">
+  <style>
+    :root { --azul: #1E3A8A; --azul-2: #172554; --link: #1D4ED8; --texto: #0F172A; --cinza: #5B6B80; --linha: #E3E8EF; --fundo-2: #F5F7FA; --suave: #EFF6FF; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: #FFFFFF; color: var(--texto); font: 16px/1.5 Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    a { color: var(--link); }
+    .c { max-width: 960px; margin: 0 auto; padding: 0 16px; }
+    header { display: flex; align-items: center; gap: 10px; padding: 14px 16px; max-width: 960px; margin: 0 auto; }
+    header img { width: 36px; height: 36px; border-radius: 9px; }
+    header b { font-size: 18px; }
+    header .entrar { margin-left: auto; font-weight: 700; text-decoration: none; padding: 10px 14px; min-height: 44px; display: inline-flex; align-items: center; }
+    .hero { padding: 28px 0 8px; }
+    h1 { font-size: 30px; line-height: 1.15; margin: 0 0 12px; }
+    h1 span, h2 span { color: var(--azul); }
+    h2 { font-size: 24px; margin: 36px 0 14px; }
+    p.sub { color: var(--cinza); font-size: 17px; margin: 0 0 20px; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; padding: 0 22px; border-radius: 12px; background: var(--azul); color: #FFFFFF; font-weight: 800; font-size: 17px; text-decoration: none; border: 0; }
+    .btn:hover { background: var(--azul-2); }
+    .btn.claro { background: #FFFFFF; color: var(--azul); border: 2px solid var(--azul); }
+    .mini { color: var(--cinza); font-size: 14px; margin-top: 10px; }
+    .dores { display: grid; gap: 10px; }
+    .dor { border: 1px solid var(--linha); border-radius: 14px; padding: 14px 16px; background: var(--fundo-2); }
+    .dor b { display: block; margin-bottom: 4px; }
+    .dor span { color: var(--cinza); }
+    .planos { display: grid; grid-template-columns: 1fr; gap: 14px; }
+    .plano { border: 1px solid var(--linha); border-radius: 16px; padding: 20px; }
+    .plano.pro { border: 2px solid var(--azul); background: var(--suave); }
+    .plano h3 { margin: 0 0 4px; font-size: 20px; }
+    .preco { font-size: 30px; font-weight: 800; color: var(--azul); }
+    .preco small { font-size: 15px; color: var(--cinza); font-weight: 600; }
+    .plano ul { padding-left: 20px; margin: 12px 0 16px; }
+    .plano li { margin: 4px 0; }
+    .plano .btn { width: 100%; }
+    details { border: 1px solid var(--linha); border-radius: 12px; padding: 0 16px; margin-bottom: 10px; }
+    summary { cursor: pointer; font-weight: 700; min-height: 52px; display: flex; align-items: center; }
+    details p { margin: 0 0 14px; color: var(--texto); }
+    footer { color: var(--cinza); font-size: 14px; padding: 28px 16px 110px; text-align: center; }
+    .barra { position: fixed; left: 0; right: 0; bottom: 0; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); background: rgba(255,255,255,.96); border-top: 1px solid var(--linha); display: flex; gap: 10px; align-items: center; justify-content: center; z-index: 10; }
+    .barra .btn { width: 100%; max-width: 420px; }
+    @media (min-width: 720px) { h1 { font-size: 42px; } .planos { grid-template-columns: 1fr 1fr; } .dores { grid-template-columns: 1fr 1fr; } }
+  </style>
+</head>
+<body>
+  <header><img src="/assets/oficina-simples.svg" alt=""><b>Oficina <span style="color:#1E3A8A">Simples</span></b><a class="entrar" data-app href="/">Entrar</a></header>
+  <main class="c">
+    <section class="hero">
+      <h1>Sua oficina <span>organizada no celular</span>.</h1>
+      <p class="sub">OS com placa, fotos e checklist. O cliente acompanha pelo link, aprova o orçamento e recebe a garantia em PDF. Para carro e moto.</p>
+      <a class="btn" data-cadastro href="/?cadastro=1">Testar grátis por 7 dias</a>
+      <div class="mini">Sem cartão para testar. Funciona no celular e no computador.</div>
+    </section>
+
+    <h2>O que <span>resolve</span></h2>
+    <div class="dores">
+      <div class="dor"><b>Veículo parado sem previsão</b><span>Pátio por etapa, previsão de entrega e aviso de atraso.</span></div>
+      <div class="dor"><b>Cliente ligando para saber</b><span>Link de acompanhamento em tempo real e WhatsApp pronto em cada etapa.</span></div>
+      <div class="dor"><b>Peça usada e não cobrada</b><span>Mão de obra e peças separadas na OS; a peça baixa do estoque na hora.</span></div>
+      <div class="dor"><b>Cliente que não volta para a revisão</b><span>Próxima revisão por data ou km, com lembrete e mensagem pronta.</span></div>
+      <div class="dor"><b>Briga por risco na lataria</b><span>Checklist de entrada com fotos, km, combustível e assinatura do cliente.</span></div>
+    </div>
+
+    <h2>Planos</h2>
+    <div class="planos">
+      <div class="plano"><h3>Essencial</h3><div class="preco">R$ 49,99 <small>/mês</small></div>
+        <ul><li>OS, pátio e orçamentos</li><li>Clientes e veículos por placa</li><li>Link do cliente e garantia em PDF</li><li>Estoque, balcão e financeiro</li><li>Até 4 pessoas com acesso</li></ul>
+        <a class="btn claro" data-checkout="essencial" data-cadastro href="/?cadastro=1">Começar</a></div>
+      <div class="plano pro"><h3>Pro</h3><div class="preco">R$ 89,99 <small>/mês</small></div>
+        <ul><li>Tudo do Essencial</li><li>Lembrete de revisão e pós-venda</li><li>Metas da oficina e por mecânico</li><li>Vitrine online de peças e acessórios</li><li>Até 4 pessoas com acesso</li></ul>
+        <a class="btn" data-checkout="pro" data-cadastro href="/?cadastro=1">Testar o Pro grátis</a></div>
+    </div>
+    <p class="mini">O teste grátis de 7 dias é no plano Pro.</p>
+
+    <h2>Perguntas</h2>
+    <details><summary>Preciso instalar alguma coisa?</summary><p>Não. Abre no navegador do celular ou do computador. Se quiser um ícone na tela do celular: no Android (Chrome), toque nos três pontinhos e em "Instalar app" ou "Adicionar à tela inicial"; no iPhone (Safari), toque em Compartilhar e em "Adicionar à Tela de Início".</p></details>
+    <details><summary>Serve para oficina de moto?</summary><p>Sim. No cadastro você escolhe carro, moto ou os dois. O checklist, os campos do veículo e o catálogo de serviços mudam conforme o tipo.</p></details>
+    <details><summary>Funciona sem internet?</summary><p>Sim. O que você faz sem internet fica guardado no aparelho e sobe sozinho quando a conexão volta, inclusive as fotos.</p></details>
+    <details><summary>O cliente precisa baixar algum app?</summary><p>Não. Ele recebe um link pelo WhatsApp e acompanha pelo navegador, sem login.</p></details>
+    <details><summary>Posso colocar a marca da minha oficina?</summary><p>Sim: logo, cor, nome e endereço próprio. Aparecem no app, nos PDFs e no link do cliente.</p></details>
+    <details><summary>Como cancelo?</summary><p>Pela própria plataforma de pagamento, quando quiser. Seus dados continuam disponíveis para consulta.</p></details>
+  </main>
+  <footer>Oficina Simples · <a href="https://api.whatsapp.com/send?phone=5548991154821&amp;text=Ol%C3%A1!%20Tenho%20uma%20d%C3%BAvida%20sobre%20a%20Oficina%20Simples.">Falar com o suporte</a></footer>
+  <div class="barra"><a class="btn" data-cadastro href="/?cadastro=1">Testar grátis</a></div>
+
+  <script>
+    /* Configuração da página (vazia por padrão): endereço do app, links de checkout, Meta Pixel e Clarity. */
+    const LANDING = { app: '', checkout: { essencial: '', pro: '' }, metaPixel: '', clarity: '' };
+    (function () {
+      // UTMs (e fbclid/gclid) da URL desta página passam para o cadastro e para o checkout
+      const p = new URLSearchParams(location.search), utm = new URLSearchParams();
+      for (const [k, v] of p) if (/^utm_|^(fbclid|gclid|ref)$/.test(k)) utm.set(k, v);
+      const junta = (url, extra) => { const u = new URL(url, location.origin); for (const [k, v] of utm) u.searchParams.set(k, v); for (const [k, v] of Object.entries(extra || {})) u.searchParams.set(k, v); return u.toString(); };
+      const app = LANDING.app || location.origin + '/';
+      document.querySelectorAll('[data-app]').forEach(a => { a.href = junta(app); });
+      document.querySelectorAll('[data-cadastro]').forEach(a => {
+        const plano = a.dataset.checkout, ck = plano && LANDING.checkout[plano];
+        a.href = ck ? junta(ck) : junta(app, { cadastro: '1' });
+      });
+      try { if (utm.toString()) localStorage.setItem('oficina_utm', utm.toString()); } catch (e) {}
+      // Meta Pixel e Clarity: só carregam se a oficina configurar
+      if (LANDING.metaPixel) {
+        !function (f, b, e, v, n, t, s) { if (f.fbq) return; n = f.fbq = function () { n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments); }; if (!f._fbq) f._fbq = n; n.push = n; n.loaded = !0; n.version = '2.0'; n.queue = []; t = b.createElement(e); t.async = !0; t.src = v; s = b.getElementsByTagName(e)[0]; s.parentNode.insertBefore(t, s); }(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
+        fbq('init', LANDING.metaPixel); fbq('track', 'PageView');
+      }
+      if (LANDING.clarity) {
+        (function (c, l, a, r, i, t, y) { c[a] = c[a] || function () { (c[a].q = c[a].q || []).push(arguments); }; t = l.createElement(r); t.async = 1; t.src = 'https://www.clarity.ms/tag/' + i; y = l.getElementsByTagName(r)[0]; y.parentNode.insertBefore(t, y); })(window, document, 'clarity', 'script', LANDING.clarity);
+      }
+    })();
+  </script>
+</body>
+</html>
