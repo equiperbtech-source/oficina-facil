@@ -1,10 +1,12 @@
-/* Teste de aceitação do "Preencher OS por voz" com o Gemini DE VERDADE.
-   Uso: GEMINI_API_KEY=... node scripts/testar-voz.mjs fala1.mp3 fala2.mp3 fala3.mp3
-   (GEMINI_MODEL opcional). Os arquivos são as 3 falas do documento, gravadas ou geradas por voz sintética.
+/* Teste de aceitação do "Preencher OS por voz" com a IA DE VERDADE.
+   - Claude Haiku (texto, como o celular transcreve): ANTHROPIC_API_KEY=... node scripts/testar-voz.mjs
+     (sem arquivos: usa as 3 falas do documento já transcritas; VOZ_CLAUDE_MODEL opcional)
+   - Gemini (áudio): GEMINI_API_KEY=... node scripts/testar-voz.mjs fala1.mp3 fala2.mp3 fala3.mp3
+     (GEMINI_MODEL opcional). Os arquivos são as 3 falas do documento, gravadas ou geradas por voz sintética.
    Usa a mesma função do servidor (api/_lib/voz.js) e uma lista de serviços/peças de exemplo. */
 import fs from 'node:fs';
 import path from 'node:path';
-import { chamarGemini, limpar, MODELO_PADRAO } from '../api/_lib/voz.js';
+import { chamarGemini, chamarClaude, limpar, MODELO_PADRAO, MODELO_CLAUDE_PADRAO } from '../api/_lib/voz.js';
 
 const catalogo = {
   servicos: [['sv-oleo', 'Troca de óleo'], ['sv-relacao', 'Relação (coroa, pinhão e corrente)'], ['sv-revisao', 'Revisão'], ['sv-freio', 'Pastilhas / lonas de freio'], ['sv-eletrica', 'Elétrica']].map(([id, nome]) => ({ id, nome })),
@@ -20,11 +22,22 @@ const ESPERADO = [
     ['placa vazia e destacada', d.placa === null && d.campos_incertos.includes('placa')]],
 ];
 const tipo = f => ({ '.mp3': 'audio/mp3', '.wav': 'audio/wav', '.ogg': 'audio/ogg', '.flac': 'audio/flac', '.aac': 'audio/aac', '.webm': 'audio/webm' })[path.extname(f).toLowerCase()] || 'audio/mp3';
+// as 3 falas do documento, como o reconhecimento de voz do celular costuma transcrever
+const FALAS = [
+  'CG 160 placa ABC1D23 do João 32 mil km troca de óleo e relação e tá com barulho no freio da frente',
+  'Fazer 250 do Marcos telefone 48 99999 8888 revisão de 10 mil e trocar a pastilha de trás',
+  'Biz da Maria não tá pegando de manhã ver bateria e vela',
+];
+const arquivos = process.argv.slice(2);
+const comClaude = !arquivos.length;
+if (comClaude && !process.env.ANTHROPIC_API_KEY) { console.error('Defina ANTHROPIC_API_KEY (ou passe os áudios com GEMINI_API_KEY).'); process.exit(2); }
 let falhas = 0;
-for (const [i, arq] of process.argv.slice(2).entries()) {
-  const bruto = await chamarGemini({ audioB64: fs.readFileSync(arq).toString('base64'), mime: tipo(arq), catalogo, chave: process.env.GEMINI_API_KEY, modelo: process.env.GEMINI_MODEL || MODELO_PADRAO });
+for (const [i, arq] of (comClaude ? FALAS : arquivos).entries()) {
+  const bruto = comClaude
+    ? await chamarClaude({ texto: arq, catalogo, chave: process.env.ANTHROPIC_API_KEY, modelo: process.env.VOZ_CLAUDE_MODEL || MODELO_CLAUDE_PADRAO })
+    : await chamarGemini({ audioB64: fs.readFileSync(arq).toString('base64'), mime: tipo(arq), catalogo, chave: process.env.GEMINI_API_KEY, modelo: process.env.GEMINI_MODEL || MODELO_PADRAO });
   const d = limpar(bruto, catalogo);
-  console.log(`\n=== Fala ${i + 1} (${path.basename(arq)}) ===\n` + JSON.stringify(d, null, 2));
+  console.log(`\n=== Fala ${i + 1} (${comClaude ? '"' + arq + '"' : path.basename(arq)}) ===\n` + JSON.stringify(d, null, 2));
   for (const [nome, ok] of (ESPERADO[i] || (() => []))(d)) { console.log(`${ok ? '✅' : '❌'} ${nome}`); if (!ok) falhas++; }
 }
 console.log(falhas ? `\n${falhas} verificação(ões) falharam` : '\nTodas as verificações passaram');

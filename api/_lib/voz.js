@@ -1,4 +1,4 @@
-/* "Preencher OS por voz": chamada ao Google Gemini e limpeza da resposta.
+/* "Preencher OS por voz": chamada à IA (Google Gemini com o áudio, ou Claude Haiku com o texto transcrito) e limpeza da resposta.
    - O áudio vai direto para o Gemini (inline, em base64) e não é guardado em lugar nenhum.
    - Saída estruturada em JSON (schema abaixo). A lista de serviços e peças da oficina vai no prompt,
      para a IA escolher entre eles em vez de inventar nomes.
@@ -34,12 +34,13 @@ export function textoCatalogo(cat = {}) {
 
 // Chama o Gemini. Devolve o objeto do schema (ainda sem limpeza). Erros: ErroIA com motivo curto.
 export class ErroIA extends Error { constructor(motivo, detalhe) { super(motivo); this.motivo = motivo; this.detalhe = detalhe; } }
-export async function chamarGemini({ audioB64, mime, catalogo, chave, modelo, fetchImpl = fetch }) {
+export async function chamarGemini({ audioB64, mime, texto, catalogo, chave, modelo, fetchImpl = fetch }) {
   if (!chave) throw new ErroIA('sem_chave');
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelo || MODELO_PADRAO)}:generateContent`;
   const corpo = {
-    systemInstruction: { parts: [{ text: INSTRUCOES }] },
-    contents: [{ role: 'user', parts: [{ text: textoCatalogo(catalogo) }, { inlineData: { mimeType: mime, data: audioB64 } }] }],
+    // com áudio (o normal no Gemini) ou com o texto já transcrito pelo navegador
+    systemInstruction: { parts: [{ text: texto ? `${INSTRUCOES}\n\n${NOTA_TEXTO}` : INSTRUCOES }] },
+    contents: [{ role: 'user', parts: [{ text: textoCatalogo(catalogo) }, texto ? { text: `Transcrição da fala do mecânico:\n"""\n${String(texto).slice(0, 4000)}\n"""` } : { inlineData: { mimeType: mime, data: audioB64 } }] }],
     generationConfig: { temperature: 0, responseMimeType: 'application/json', responseSchema: SCHEMA },
   };
   let r;
@@ -75,4 +76,52 @@ export function limpar(bruto, catalogo = {}) {
   out.campos_incertos = [...inc];
   out.vazio = !out.placa && !out.modelo_moto && !out.nome_cliente && !out.defeito_relatado && !out.servicos.length && !out.pecas.length && !out.km;
   return out;
+}
+
+/* ---------- Claude (Anthropic) ----------
+   O Claude não recebe áudio: o navegador transcreve a fala (reconhecimento de voz do próprio celular) e o
+   servidor manda só o TEXTO. Chave: ANTHROPIC_API_KEY. Modelo: VOZ_CLAUDE_MODEL (padrão: Claude Haiku 5.5). */
+export const MODELO_CLAUDE_PADRAO = 'claude-haiku-5-5';
+export const NOTA_TEXTO = 'O pedido traz a TRANSCRIÇÃO automática da fala do mecânico (o reconhecimento de voz do celular), não o áudio. '
+  + "A transcrição pode ter erros de reconhecimento: letras e números da placa podem vir separados ou por extenso ('a b c um d dois três' = ABC1D23). "
+  + 'Responda somente com o JSON pedido.';
+const nulo = tipo => ({ anyOf: [{ type: tipo }, { type: 'null' }] });
+// o mesmo schema do Gemini, em JSON Schema (Claude: todo objeto com additionalProperties false e tudo em required)
+export const SCHEMA_JSON = {
+  type: 'object',
+  properties: {
+    placa: nulo('string'), modelo_moto: nulo('string'), ano: nulo('integer'), km: nulo('integer'), nome_cliente: nulo('string'), telefone_cliente: nulo('string'),
+    servicos: { type: 'array', items: { type: 'object', properties: { nome: { type: 'string' }, id_cadastro: nulo('string') }, required: ['nome', 'id_cadastro'], additionalProperties: false } },
+    pecas: { type: 'array', items: { type: 'object', properties: { nome: { type: 'string' }, quantidade: { type: 'number' }, id_cadastro: nulo('string') }, required: ['nome', 'quantidade', 'id_cadastro'], additionalProperties: false } },
+    defeito_relatado: nulo('string'), observacoes: nulo('string'),
+    campos_incertos: { type: 'array', items: { type: 'string' } },
+  },
+  required: SCHEMA.required,
+  additionalProperties: false,
+};
+
+export async function chamarClaude({ texto, catalogo, chave, modelo, fetchImpl }) {
+  if (!chave) throw new ErroIA('sem_chave');
+  const { default: Anthropic } = await import('@anthropic-ai/sdk');
+  const client = new Anthropic({ apiKey: chave, maxRetries: 1, timeout: 50_000, ...(fetchImpl ? { fetch: fetchImpl } : {}) });
+  let r;
+  try {
+    r = await client.messages.create({
+      model: modelo || MODELO_CLAUDE_PADRAO,
+      max_tokens: 8000,
+      system: `${INSTRUCOES}\n\n${NOTA_TEXTO}`,
+      messages: [{ role: 'user', content: `${textoCatalogo(catalogo)}\n\nTranscrição da fala do mecânico:\n"""\n${String(texto).slice(0, 4000)}\n"""` }],
+      output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMA_JSON } },
+    });
+  } catch (e) {
+    if (e instanceof Anthropic.RateLimitError) throw new ErroIA('limite_ia', e.message);
+    if (e instanceof Anthropic.APIConnectionError) throw new ErroIA('rede', e.message);   // inclui o tempo esgotado
+    if (e instanceof Anthropic.APIError) throw new ErroIA('falha_ia', `${e.status} ${String(e.message).slice(0, 300)}`);
+    throw new ErroIA('falha_ia', e && e.message);
+  }
+  if (r.stop_reason === 'refusal') throw new ErroIA('sem_resposta', JSON.stringify(r.stop_details || '').slice(0, 200));
+  if (r.stop_reason === 'max_tokens') throw new ErroIA('falha_ia', 'resposta cortada (max_tokens)');
+  const parte = r.content.find(b => b.type === 'text');
+  if (!parte) throw new ErroIA('sem_resposta', r.stop_reason);
+  try { return JSON.parse(parte.text); } catch { throw new ErroIA('falha_ia', 'JSON inválido do modelo'); }
 }

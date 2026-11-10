@@ -94,6 +94,7 @@ Em **Settings → Environment Variables** do projeto (marque só **Production**,
 | `KIWIFY_WEBHOOK_TOKEN` | token do webhook da Kiwify (passo 4) |
 | `BREVO_API_KEY` e `BREVO_REMETENTE` | chave do Brevo e o e-mail remetente verificado (passo 5) |
 | `PLATAFORMA_NOME` | `Oficina Simples` |
+| `ANTHROPIC_API_KEY` | chave da API do Claude (console.anthropic.com → API Keys) para o **Preencher OS por voz** com o Claude Haiku. Opcional: `GEMINI_API_KEY` (aistudio.google.com) para celulares sem reconhecimento de voz. Veja `docs/OS-POR-VOZ.md` |
 
 Depois: **Settings → Environments → Production → Branch Tracking**: volte o branch de produção para o branch que você quer publicar (hoje, `claude/new-session-lji9tt`) e faça **Redeploy**.
 

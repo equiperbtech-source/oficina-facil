@@ -1,5 +1,6 @@
-/* "Preencher OS por voz": o mecânico grava um áudio, o servidor (Gemini) devolve os campos e a tela de revisão
-   mostra tudo preenchido. Campo que a IA não entendeu fica vazio e amarelo ("Confira este campo").
+/* "Preencher OS por voz": o mecânico fala, o celular transcreve (reconhecimento de voz do navegador), o servidor
+   (Claude Haiku, ou Gemini) devolve os campos e a tela de revisão mostra tudo preenchido. Navegador sem
+   reconhecimento de voz: grava o áudio e manda para o Gemini (o único que recebe áudio). Campo que a IA não entendeu fica vazio e amarelo ("Confira este campo").
    A IA nunca salva: a OS só é aberta quando o mecânico toca em "Abrir OS". */
 const VozOS = {
   MAX_SEG: 90,
@@ -9,9 +10,71 @@ const VozOS = {
     return `<button type="button" class="btn primary block voz-btn" id="voz-gravar">${icon('mic')}<span><b>${t('Gravar áudio')}</b><small>${t('Fale a moto e o serviço: a OS vem preenchida')}</small></span></button>`;
   },
 
-  /* ---------- 1. gravar ---------- */
-  async iniciar() {
+  /* ---------- 1. ouvir (transcrição no celular) ou gravar (áudio) ---------- */
+  iniciar() {
     if (!Cloud.enabled || !Cloud.loja) return toast(t('O preenchimento por voz precisa da nuvem ligada.'), true);
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    return SR ? this.ouvir(SR) : this.gravar();
+  },
+
+  modalGravando(extra = '') {
+    return {
+      title: t('Gravando'), icon: 'mic',
+      body: `<div class="center voz-rec"><div class="voz-ponto" aria-hidden="true"></div><div class="voz-tempo" id="voz-tempo" aria-live="polite">0:00</div>
+        ${extra}<div class="small muted">${t('Até 1:30. Ex.: "CG 160 placa ABC1D23 do João, 32 mil km, troca de óleo e relação, barulho no freio da frente."')}</div></div>`,
+      foot: `<button class="btn" id="voz-cancelar">${t('Cancelar')}</button><button class="btn primary btn-grande" id="voz-parar" style="flex:1">${icon('pause')} ${t('Parar')}</button>`,
+    };
+  },
+  relogio(m, inicio, aoFim) {
+    return setInterval(() => {
+      const s = Math.floor((Date.now() - inicio) / 1000), el = $('#voz-tempo', m.el);
+      if (el) el.textContent = `${Math.floor(s / 60)}:${pad(s % 60)}`;
+      if (s >= this.MAX_SEG) aoFim();
+    }, 250);
+  },
+
+  // reconhecimento de voz do navegador (Chrome no Android, Safari no iPhone): o texto aparece enquanto o mecânico fala
+  ouvir(SR) {
+    const rec = new SR();
+    rec.lang = 'pt-BR'; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 1;
+    let antes = [], agora = [], parcial = '', parado = false, enviar = false, falha = null, fim = false, timer;
+    const texto = () => [...antes, ...agora, parcial].map(x => String(x || '').trim()).filter(Boolean).join(' ');
+    const inicio = Date.now();
+    const m = openModal({ ...this.modalGravando(`<div class="voz-texto" id="voz-texto" aria-live="polite"><span class="muted">${t('Pode falar...')}</span></div>`),
+      onClose: () => { if (!parado) { parado = true; clearInterval(timer); try { rec.abort(); } catch {} } } });
+    const mostra = () => { const el = $('#voz-texto', m.el); if (el) el.textContent = texto() || t('Pode falar...'); };
+    const terminar = () => {
+      if (fim) return; fim = true; clearInterval(timer); m.close();
+      const tx = texto();
+      if (falha === 'permissao') return this.semMicrofone('NotAllowedError');
+      if (!enviar) return;
+      if (falha && !tx) return this.erro('falha');
+      if (tx.replace(/[^\p{L}\p{N}]/gu, '').length < 6) return this.erro('curto');
+      this.processarTexto(tx);
+    };
+    rec.onresult = e => {
+      agora = []; parcial = '';
+      for (let i = 0; i < e.results.length; i++) { const r = e.results[i]; if (r.isFinal) agora.push(r[0].transcript); else parcial += ' ' + r[0].transcript; }
+      mostra();
+    };
+    rec.onerror = e => {
+      if (e.error === 'no-speech' || e.error === 'aborted') return;
+      falha = e.error === 'not-allowed' || e.error === 'service-not-allowed' ? 'permissao' : 'rede';
+    };
+    // o Android para sozinho depois de um silêncio: guarda o que já ouviu e continua ouvindo até o "Parar"
+    rec.onend = () => {
+      antes = [...antes, ...agora, parcial].filter(x => String(x).trim()); agora = []; parcial = '';
+      if (!parado && !falha) { try { rec.start(); return; } catch {} }
+      terminar();
+    };
+    const parar = env => { if (parado) return; parado = true; enviar = env; clearInterval(timer); try { rec.stop(); } catch { terminar(); } };
+    timer = this.relogio(m, inicio, () => parar(true));
+    $('#voz-parar', m.el).onclick = () => parar(true);
+    $('#voz-cancelar', m.el).onclick = () => parar(false);
+    try { rec.start(); } catch { falha = 'rede'; parar(true); }
+  },
+
+  async gravar() {
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') return this.semMicrofone('nao_suporta');
     let stream;
     try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
@@ -20,11 +83,7 @@ const VozOS = {
     rec.ondataavailable = e => { if (e.data && e.data.size) partes.push(e.data); };
     const inicio = Date.now();
     let timer, parado = false;
-    const m = openModal({
-      title: t('Gravando'), icon: 'mic',
-      body: `<div class="center voz-rec"><div class="voz-ponto" aria-hidden="true"></div><div class="voz-tempo" id="voz-tempo" aria-live="polite">0:00</div>
-        <div class="small muted">${t('Até 1:30. Ex.: "CG 160 placa ABC1D23 do João, 32 mil km, troca de óleo e relação, barulho no freio da frente."')}</div></div>`,
-      foot: `<button class="btn" id="voz-cancelar">${t('Cancelar')}</button><button class="btn primary btn-grande" id="voz-parar" style="flex:1">${icon('pause')} ${t('Parar')}</button>`,
+    const m = openModal({ ...this.modalGravando(),
       onClose: () => { if (!parado) { parado = true; clearInterval(timer); try { rec.state !== 'inactive' && rec.stop(); } catch {} stream.getTracks().forEach(x => x.stop()); } },
     });
     const parar = enviar => {
@@ -32,11 +91,7 @@ const VozOS = {
       rec.onstop = () => { stream.getTracks().forEach(x => x.stop()); m.close(); if (enviar) this.processar(new Blob(partes, { type: rec.mimeType || 'audio/webm' }), (Date.now() - inicio) / 1000); };
       try { rec.stop(); } catch { rec.onstop(); }
     };
-    timer = setInterval(() => {
-      const s = Math.floor((Date.now() - inicio) / 1000), el = $('#voz-tempo', m.el);
-      if (el) el.textContent = `${Math.floor(s / 60)}:${pad(s % 60)}`;
-      if (s >= this.MAX_SEG) parar(true);
-    }, 250);
+    timer = this.relogio(m, inicio, () => parar(true));
     $('#voz-parar', m.el).onclick = () => parar(true);
     $('#voz-cancelar', m.el).onclick = () => parar(false);
     rec.start(1000);
@@ -83,27 +138,37 @@ const VozOS = {
     let a;
     try { a = await this.paraWav(blob); } catch { return falhou('curto'); }
     if (a.duracao < 1.5 || seg < 1.5 || a.pico < 0.02 || a.rms < 0.003) return falhou('curto');
+    this.enviar('audio/wav', a.wav, lendo);
+  },
+  processarTexto(texto) {
+    const lendo = openModal({ title: t('Lendo a fala...'), icon: 'mic', body: `<div class="center" style="padding:20px 0"><span class="spinner voz-spin"></span><p class="muted">${t('Isso leva alguns segundos.')}</p></div>` });
+    this.enviar('application/json', JSON.stringify({ texto }), lendo, texto);
+  },
+  async enviar(tipo, corpo, lendo, texto = '') {
     try {
       const { data } = await Cloud.sb.auth.getSession();
-      const r = await fetch('/api/os/voz', { method: 'POST', headers: { 'Content-Type': 'audio/wav', Authorization: 'Bearer ' + (data?.session?.access_token || ''), 'X-Loja': Cloud.loja.id }, body: a.wav });
+      const r = await fetch('/api/os/voz', { method: 'POST', headers: { 'Content-Type': tipo, Authorization: 'Bearer ' + (data?.session?.access_token || ''), 'X-Loja': Cloud.loja.id }, body: corpo });
       const j = await r.json().catch(() => ({}));
       lendo.close();
       if (r.status === 422 || (r.ok && j.dados?.vazio)) return this.erro('curto');
+      // áudio gravado, mas o servidor só tem o Claude (que não recebe áudio)
+      if (r.status === 503 && j.erro === 'sem_chave' && tipo !== 'application/json') return this.erro('nao_transcreve');
       if (!r.ok || !j.dados) return this.erro(j.erro === 'sem_login' ? 'login' : 'falha');
-      this.revisar(j.dados);
-    } catch { falhou('falha'); }
+      this.revisar(j.dados, texto);
+    } catch { lendo.close(); this.erro('falha'); }
   },
   erro(tipo) {
     const msg = { curto: t('Não deu para ouvir a fala. Grave de novo, mais perto do celular e falando por alguns segundos.'),
       login: t('Sua sessão expirou. Entre de novo e grave outra vez.'),
-      falha: t('Não consegui ler o áudio agora, preencha manualmente ou tente de novo') }[tipo] || tipo;
+      falha: t('Não consegui ler o áudio agora, preencha manualmente ou tente de novo'),
+      nao_transcreve: t('Este navegador não transcreve a fala. Use o Chrome (Android) ou o Safari (iPhone), ou preencha manualmente.') }[tipo] || tipo;
     openModal({ title: tipo === 'curto' ? t('Grave de novo') : t('Áudio não lido'), icon: 'mic', body: `<p style="margin-top:0">${esc(msg)}</p>`,
       foot: `<button class="btn" data-close>${t('Preencher manualmente')}</button><button class="btn primary" id="voz-de-novo">${icon('mic')} ${t('Gravar de novo')}</button>`,
       onMount: (el, m) => { $('#voz-de-novo', el).onclick = () => { m.close(); this.iniciar(); }; } });
   },
 
   /* ---------- 3. revisar e salvar (só o mecânico salva) ---------- */
-  revisar(d) {
+  revisar(d, texto = '') {
     const incertos = new Set(d.campos_incertos || []);
     const placa = Placa.norm(d.placa || '');
     const ja = placa ? Veiculo.porPlaca(placa) : null;
@@ -139,6 +204,7 @@ const VozOS = {
       title: t('Confira a OS'), icon: 'mic', wide: true, subtitle: t('Preenchida pelo áudio. Revise e corrija antes de abrir.'),
       body: `${ja ? `<div class="aviso-plano green" style="margin:0 0 12px">${icon('checkCircle', 'sm')}<span>${t(tipo === 'moto' ? 'Moto já cadastrada: {m} de {c}' : 'Veículo já cadastrado: {m} de {c}', { m: Veiculo.completo(vei) || vei.modelo, c: cli.nome })}</span></div>`
           : cli ? `<div class="aviso-plano gold" style="margin:0 0 12px">${icon('user', 'sm')}<span>${t('Cliente já cadastrado: {c}', { c: cli.nome })}</span></div>` : ''}
+        ${texto ? `<details class="voz-ouvido mb"><summary>${t('O que eu entendi')}</summary><p>${esc(texto)}</p></details>` : ''}
         <div class="form-row">${campo('placa', inp('placa', 'autocapitalize="characters" maxlength="8"'))}${campo('modelo_moto', inp('modelo_moto'))}</div>
         <div class="form-row">${campo('ano', inp('ano', 'inputmode="numeric" maxlength="4"'))}${campo('km', `<input class="input" name="km" inputmode="numeric" value="${v.km ? fmtKm(v.km, false) : ''}">`)}</div>
         <div class="form-row">${campo('nome_cliente', inp('nome_cliente'))}${campo('telefone_cliente', `<input class="input" name="telefone_cliente" type="tel" value="${esc(fmtPhone(v.telefone_cliente))}">`)}</div>

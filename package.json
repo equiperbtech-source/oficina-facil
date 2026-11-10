@@ -20,5 +20,8 @@
     "banco:desligar": "bash tests/db/pg.sh stop",
     "teste": "playwright test",
     "teste:servidor": "node tests/servidor/supabase-falso.cjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.7.0"
   }
 }

@@ -6,3 +6,4 @@
 | Espanhol das telas novas | Parcial: o que já existia segue traduzido; textos novos aparecem em português no modo espanhol | Prioridade no deploy em português (produto vendido no Brasil) |
 | Vitrine lendo as peças "vende no balcão" | A vitrine ainda lê os produtos antigos | Exige mudar 2 funções do banco da vitrine |
 | Fotos de "peça velha" no link do cliente | Não aparece no link | Link público: mais seguro sem fotos por enquanto |
+- Teste `09-personalizacao` "dois dispositivos mudam configurações ao mesmo tempo" falha quando roda depois dos outros (passa sozinho); já falhava antes do Claude Haiku na voz. Investigar a sincronização no Supabase falso.

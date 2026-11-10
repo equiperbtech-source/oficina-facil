@@ -1,7 +1,8 @@
 /* "Preencher OS por voz". Servidor: rota de verdade (login, oficina, limite 30/h, lista cadastrada no prompt,
-   saída em JSON, áudio não guardado) com o Gemini simulado. Tela: microfone falso do Chromium, as 3 falas de
-   aceitação (resposta simulada como o Gemini devolve), campos em amarelo, moto já cadastrada, telefone diferente.
-   O teste com o Gemini de verdade fica em scripts/testar-voz.mjs (precisa da GEMINI_API_KEY). */
+   saída em JSON, áudio não guardado) com o Gemini (áudio) e o Claude Haiku (texto transcrito) simulados.
+   Tela: reconhecimento de voz falso (as falas de aceitação como texto) e, sem ele, o microfone falso do Chromium
+   gravando áudio; campos em amarelo, moto já cadastrada, telefone diferente.
+   O teste com a IA de verdade fica em scripts/testar-voz.mjs (precisa da ANTHROPIC_API_KEY ou da GEMINI_API_KEY). */
 const { test, expect } = require('@playwright/test');
 const fs = require('fs'), path = require('path');
 const { vigiarErros, emailNovo, criarContaEOficina, login } = require('./ajuda.cjs');
@@ -9,7 +10,31 @@ const { SERVICE_KEY } = require('../servidor/supabase-falso.cjs');
 const PRINTS = path.join(__dirname, '..', 'prints');
 test.use({ launchOptions: { args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] }, permissions: ['microphone'] });
 
-// o que o Gemini devolve para as 3 falas de aceitação (os ids da lista cadastrada são trocados no teste)
+// as 3 falas de aceitação, como o reconhecimento de voz do celular transcreve (em dois pedaços: o Android para no silêncio)
+const FALAS = {
+  1: ['CG 160 placa ABC1D23 do João 32 mil quilômetros', 'troca de óleo e relação barulho no freio da frente'],
+  2: ['Fazer 250 do Marcos telefone 48 99999 8888', 'revisão de 10 mil e pastilha traseira'],
+  3: ['Biz da Maria não pega de manhã', 'ver bateria e vela'],
+};
+// reconhecimento de voz falso (no lugar do Chrome/Safari): fala o 1º pedaço, "para no silêncio", volta e fala o 2º
+function falaFalsa(pedacos) {
+  window.__pedacos = pedacos.slice();
+  window.SpeechRecognition = window.webkitSpeechRecognition = class {
+    start() {
+      const p = window.__pedacos.shift();
+      if (this.lang !== 'pt-BR') throw new Error('idioma');
+      if (!p) return;
+      const res = (txt, fim) => ({ resultIndex: 0, results: [Object.assign([{ transcript: txt }], { isFinal: fim })] });
+      setTimeout(() => this.onresult?.(res(p.split(' ').slice(0, 2).join(' '), false)), 150);
+      setTimeout(() => this.onresult?.(res(p, true)), 400);
+      if (window.__pedacos.length) setTimeout(() => this.onend?.(), 700);   // silêncio: o navegador encerra sozinho
+    }
+    stop() { setTimeout(() => this.onend?.(), 30); }
+    abort() { this.stop(); }
+  };
+}
+
+// o que a IA devolve para as 3 falas de aceitação (os ids da lista cadastrada são trocados no teste)
 const RESPOSTAS = {
   1: { placa: 'ABC-1D23', modelo_moto: 'CG 160', ano: null, km: 32000, nome_cliente: 'João', telefone_cliente: null, servicos: [{ nome: 'Troca de óleo', id_cadastro: '@oleo' }, { nome: 'Relação', id_cadastro: '@relacao' }], pecas: [], defeito_relatado: 'Barulho no freio da frente', observacoes: null, campos_incertos: ['ano', 'telefone_cliente'] },
   2: { placa: null, modelo_moto: 'Fazer 250', ano: null, km: null, nome_cliente: 'Marcos', telefone_cliente: '48 99999 8888', servicos: [{ nome: 'Revisão de 10 mil', id_cadastro: '@revisao' }], pecas: [{ nome: 'Pastilha traseira', quantidade: 1, id_cadastro: '@pastilha' }], defeito_relatado: null, observacoes: null, campos_incertos: ['placa', 'km'] },
@@ -24,7 +49,7 @@ test('servidor: login, oficina, lista cadastrada no prompt, JSON limpo, limite d
   const tok = await login(conta.email);
   await page.waitForTimeout(2500);   // deixa a oficina subir para a nuvem
   process.env.SUPABASE_URL = 'http://127.0.0.1:54321'; process.env.SUPABASE_SERVICE_ROLE_KEY = SERVICE_KEY;
-  process.env.GEMINI_API_KEY = 'chave-de-teste'; delete process.env.GEMINI_MODEL;
+  process.env.GEMINI_API_KEY = 'chave-de-teste'; delete process.env.GEMINI_MODEL; delete process.env.ANTHROPIC_API_KEY;
   const { POST } = await import(path.join(__dirname, '..', '..', 'api', 'os', 'voz.js'));
   // Gemini simulado: guarda o pedido e responde como a API (candidates[0].content.parts[0].text)
   const pedidos = [], fetchReal = global.fetch;
@@ -76,6 +101,80 @@ test('servidor: login, oficina, lista cadastrada no prompt, JSON limpo, limite d
   expect(fonte).not.toMatch(/writeFile|createWriteStream|storage\/v1|\.upload\(/);
 });
 
+test('servidor: texto transcrito vai para o Claude Haiku (JSON Schema, lista cadastrada); áudio continua no Gemini', async ({ page }, info) => {
+  test.skip(info.project.name !== 'celular', 'uma vez basta');
+  const conta = { email: emailNovo('vozclaude'), oficina: 'Oficina Haiku', tipos: 'moto' };
+  await criarContaEOficina(page, conta);
+  const loja = await page.evaluate(() => { Store.db.pecas.push({ id: 'pc-past', nome: 'Pastilha de freio traseira', codigo: '7891', qtd: 3 }); Store.save(); return Cloud.loja.id; });
+  const tok = await login(conta.email);
+  await page.waitForTimeout(2500);
+  process.env.SUPABASE_URL = 'http://127.0.0.1:54321'; process.env.SUPABASE_SERVICE_ROLE_KEY = SERVICE_KEY;
+  process.env.ANTHROPIC_API_KEY = 'chave-claude-teste'; delete process.env.VOZ_CLAUDE_MODEL;
+  process.env.GEMINI_API_KEY = 'chave-gemini-teste'; delete process.env.GEMINI_MODEL;
+  const { POST } = await import(path.join(__dirname, '..', '..', 'api', 'os', 'voz.js'));
+  // Claude simulado: responde como a API de mensagens (content[0].text com o JSON); Gemini simulado também
+  const claude = [], gemini = [], fetchReal = global.fetch;
+  let respostaClaude = null;
+  global.fetch = async (url, op = {}) => {
+    const u = String(url instanceof Request ? url.url : url);
+    if (u.startsWith('https://api.anthropic.com/')) {
+      const corpo = JSON.parse(op.body);
+      claude.push({ url: u, headers: new Headers(op.headers), corpo });
+      if (respostaClaude) return respostaClaude();
+      const cat = corpo.messages[0].content;
+      const idOleo = (cat.match(/^(\S+) \| Troca de óleo$/m) || [])[1];
+      const resp = { ...RESPOSTAS[1], placa: 'ABC 1D23', servicos: [{ nome: 'Troca de óleo', id_cadastro: idOleo }], pecas: [{ nome: 'Pastilha traseira', quantidade: 1, id_cadastro: 'pc-past' }] };
+      return new Response(JSON.stringify({ id: 'msg_1', type: 'message', role: 'assistant', model: corpo.model, content: [{ type: 'text', text: JSON.stringify(resp) }], stop_reason: 'end_turn', stop_sequence: null, usage: { input_tokens: 10, output_tokens: 10 } }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+    if (u.startsWith('https://generativelanguage.googleapis.com/')) {
+      gemini.push({ url: u, corpo: JSON.parse(op.body) });
+      return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(RESPOSTAS[3]) }] } }] }), { status: 200 });
+    }
+    return fetchReal(url, op);
+  };
+  const FALA = 'CG 160 placa ABC1D23 do João 32 mil quilômetros troca de óleo e relação barulho no freio da frente';
+  const texto = (txt, h = {}) => POST(new Request('https://app.exemplo/api/os/voz', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok, 'X-Loja': loja, ...h }, body: JSON.stringify({ texto: txt }) }));
+  const audio = () => POST(new Request('https://app.exemplo/api/os/voz', { method: 'POST', headers: { 'Content-Type': 'audio/wav', Authorization: 'Bearer ' + tok, 'X-Loja': loja }, body: Buffer.alloc(40000, 1) }));
+  try {
+    expect((await POST(new Request('https://x/api/os/voz', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Loja': loja }, body: '{"texto":"x"}' }))).status).toBe(401);
+    const r = await texto(FALA); const j = await r.json();
+    expect(r.status, JSON.stringify(j)).toBe(200);
+    // pedido ao Claude: Haiku 5.5, chave no cabeçalho, instruções + aviso de transcrição, JSON Schema, lista cadastrada e a fala
+    const p = claude[0];
+    expect(p.url).toBe('https://api.anthropic.com/v1/messages');
+    expect(p.headers.get('x-api-key') || p.headers.get('authorization')).toContain('chave-claude-teste');   // o SDK manda a chave (Authorization ou x-api-key)
+    expect(p.corpo.model).toBe('claude-haiku-5-5');
+    expect(p.corpo.system).toMatch(/Nunca invente dados/); expect(p.corpo.system).toMatch(/TRANSCRIÇÃO/);
+    expect(p.corpo.output_config.format.type).toBe('json_schema');
+    expect(p.corpo.output_config.format.schema.additionalProperties).toBe(false);
+    expect(p.corpo.output_config.format.schema.properties.servicos.items.additionalProperties).toBe(false);
+    expect(Object.keys(p.corpo.output_config.format.schema.properties)).toEqual(['placa', 'modelo_moto', 'ano', 'km', 'nome_cliente', 'telefone_cliente', 'servicos', 'pecas', 'defeito_relatado', 'observacoes', 'campos_incertos']);
+    expect(p.corpo).not.toHaveProperty('temperature');
+    expect(p.corpo.messages[0].content).toContain('pc-past | Pastilha de freio traseira | código 7891');
+    expect(p.corpo.messages[0].content).toContain(FALA);
+    expect(j.dados).toMatchObject({ placa: 'ABC1D23', km: 32000, nome_cliente: 'João', modelo_moto: 'CG 160' });
+    expect(j.dados.pecas[0]).toEqual({ nome: 'Pastilha traseira', quantidade: 1, id_cadastro: 'pc-past' });
+    expect(gemini.length).toBe(0);
+    // modelo trocado pela variável
+    process.env.VOZ_CLAUDE_MODEL = 'claude-sonnet-5-5'; await texto(FALA); expect(claude[1].corpo.model).toBe('claude-sonnet-5-5'); delete process.env.VOZ_CLAUDE_MODEL;
+    // fala vazia não gasta a IA
+    expect((await texto('é...')).status).toBe(422); expect(claude.length).toBe(2);
+    // áudio (navegador sem reconhecimento de voz) continua indo para o Gemini
+    expect((await audio()).status).toBe(200); expect(gemini.length).toBe(1); expect(gemini[0].corpo.contents[0].parts[1].inlineData.mimeType).toBe('audio/wav');
+    // falha e recusa do Claude viram erro curto (a tela mostra "preencha manualmente ou tente de novo")
+    respostaClaude = () => new Response(JSON.stringify({ type: 'error', error: { type: 'invalid_request_error', message: 'x' } }), { status: 400, headers: { 'content-type': 'application/json' } });
+    let e = await texto(FALA); expect(e.status).toBe(502); expect((await e.json()).erro).toBe('falha_ia');
+    respostaClaude = () => new Response(JSON.stringify({ id: 'msg_2', type: 'message', role: 'assistant', model: 'claude-haiku-5-5', content: [], stop_reason: 'refusal', stop_sequence: null, usage: { input_tokens: 1, output_tokens: 0 } }), { status: 200, headers: { 'content-type': 'application/json' } });
+    e = await texto(FALA); expect(e.status).toBe(502); expect((await e.json()).erro).toBe('sem_resposta');
+    respostaClaude = null;
+    // sem a chave do Claude, o texto vai para o Gemini (como texto); sem nenhuma chave, 503
+    delete process.env.ANTHROPIC_API_KEY;
+    expect((await texto(FALA)).status).toBe(200); expect(gemini[1].corpo.contents[0].parts[1].text).toContain(FALA); expect(gemini[1].corpo.systemInstruction.parts[0].text).toMatch(/TRANSCRIÇÃO/);
+    process.env.ANTHROPIC_API_KEY = 'chave-claude-teste'; delete process.env.GEMINI_API_KEY;
+    const sem = await audio(); expect(sem.status).toBe(503); expect((await sem.json()).erro).toBe('sem_chave');
+  } finally { global.fetch = fetchReal; delete process.env.ANTHROPIC_API_KEY; delete process.env.VOZ_CLAUDE_MODEL; }
+});
+
 for (const n of [1, 2, 3]) {
   test(`tela: fala ${n} preenche a OS, destaca o que falta e só salva quando o mecânico manda`, async ({ page }, info) => {
     test.skip(info.project.name !== 'celular', 'no celular');
@@ -106,14 +205,21 @@ for (const n of [1, 2, 3]) {
     await page.locator('.page-actions .btn.primary').click();
     await expect(page.locator('#voz-gravar')).toBeVisible();
     expect((await page.locator('#voz-gravar').boundingBox()).height).toBeGreaterThanOrEqual(56);
+    const comTexto = n !== 3;   // fala 3: navegador sem reconhecimento de voz → grava o áudio (Gemini)
+    if (comTexto) await page.evaluate(falaFalsa, FALAS[n]);
+    else await page.evaluate(() => { window.SpeechRecognition = window.webkitSpeechRecognition = undefined; });
     await page.locator('#voz-gravar').click();
     await expect(page.locator('#voz-tempo')).toBeVisible();
+    if (comTexto) await expect(page.locator('#voz-texto')).toHaveText(FALAS[n].join(' '));   // o texto aparece enquanto fala
     await page.waitForTimeout(2300);
     await expect(page.locator('#voz-tempo')).toHaveText(/0:0[2-3]/);
     await page.locator('#voz-parar').click();
     await expect(page.locator('.modal').last()).toContainText('Confira a OS', { timeout: 15000 });
     expect(chamadas).toBe(1);
-    expect(corpo.slice(0, 4).toString()).toBe('RIFF');   // o áudio vai como WAV
+    if (comTexto) {
+      expect(JSON.parse(corpo.toString())).toEqual({ texto: FALAS[n].join(' ') });   // só o texto vai para o servidor
+      await expect(page.locator('.voz-ouvido')).toContainText('O que eu entendi');
+    } else expect(corpo.slice(0, 4).toString()).toBe('RIFF');   // o áudio vai como WAV
     const val = k => page.locator(`[data-voz=${k}] [name]`).first().inputValue();
     const amarelo = k => page.locator(`[data-voz=${k}]`).evaluate(e => e.classList.contains('voz-confira'));
     // nada foi salvo ainda: a IA nunca salva sozinha
@@ -161,10 +267,25 @@ test('tela: microfone bloqueado explica como liberar; falha da IA não trava; á
   const page = await ctx.newPage();
   await criarContaEOficina(page, { email: emailNovo('vozerro'), oficina: 'Oficina Erro', tipos: 'moto' });
   // sem permissão de microfone
-  await page.evaluate(() => { navigator.mediaDevices.getUserMedia = () => Promise.reject(Object.assign(new Error('x'), { name: 'NotAllowedError' })); VozOS.iniciar(); });
+  await page.evaluate(() => { window.SpeechRecognition = window.webkitSpeechRecognition = undefined; navigator.mediaDevices.getUserMedia = () => Promise.reject(Object.assign(new Error('x'), { name: 'NotAllowedError' })); VozOS.iniciar(); });
   await expect(page.locator('.modal').last()).toContainText('Microfone bloqueado');
   await expect(page.locator('.modal').last()).toContainText('Permissões → Microfone');
   await page.evaluate(() => closeAllModals());
+  // reconhecimento de voz sem permissão: a mesma explicação
+  await page.evaluate(() => { window.SpeechRecognition = class { start() { setTimeout(() => { this.onerror?.({ error: 'not-allowed' }); this.onend?.(); }, 50); } stop() {} abort() {} }; VozOS.iniciar(); });
+  await expect(page.locator('.modal').last()).toContainText('Microfone bloqueado');
+  await page.evaluate(() => closeAllModals());
+  // fala curta demais ("é...") não gasta a IA
+  let gastou = 0; await page.route('**/api/os/voz', r => { gastou++; return r.fulfill({ status: 500, body: '{}' }); });
+  await page.evaluate(() => { window.SpeechRecognition = class { start() { setTimeout(() => this.onresult?.({ results: [Object.assign([{ transcript: 'é...' }], { isFinal: true })] }), 50); } stop() { setTimeout(() => this.onend?.(), 10); } abort() {} }; VozOS.iniciar(); });
+  await page.locator('#voz-parar').click();
+  await expect(page.locator('.modal').last()).toContainText('Grave de novo'); expect(gastou).toBe(0);
+  await page.evaluate(() => closeAllModals()); await page.unroute('**/api/os/voz');
+  // áudio gravado (navegador sem reconhecimento), mas o servidor só tem o Claude, que não recebe áudio
+  await page.route('**/api/os/voz', r => r.fulfill({ status: 503, contentType: 'application/json', body: '{"erro":"sem_chave"}' }));
+  await page.evaluate(async () => { VozOS.paraWav = async () => ({ wav: new Blob(['RIFF']), duracao: 5, rms: 0.1, pico: 0.5 }); await VozOS.processar(new Blob(['x']), 5); });
+  await expect(page.locator('.modal').last()).toContainText('Este navegador não transcreve a fala');
+  await page.evaluate(() => closeAllModals()); await page.unroute('**/api/os/voz');
   // falha da API / limite
   await page.route('**/api/os/voz', r => r.fulfill({ status: 429, contentType: 'application/json', body: '{"erro":"limite"}' }));
   await page.evaluate(async () => { VozOS.paraWav = async () => ({ wav: new Blob(['RIFF']), duracao: 5, rms: 0.1, pico: 0.5 }); await VozOS.processar(new Blob(['x']), 5); });
