@@ -29,8 +29,13 @@ if (ambiente === 'production' && !url) {
 }
 // Trava contra engano: em produção, só usa o banco se houver confirmação explícita.
 // (Ex.: variáveis do Supabase de TESTE marcadas sem querer também em "Production".)
-if (ambiente === 'production' && process.env.OFICINA_CONFIRMO_BANCO_PRODUCAO !== url) {
-  console.error('[config] ERRO: produção sem OFICINA_CONFIRMO_BANCO_PRODUCAO igual à OFICINA_SUPABASE_URL.');
+// (as duas são comparadas já normalizadas: barra no fim, https://, maiúsculas ou /rest/v1 não atrapalham)
+const confirmo = normalizarUrl(process.env.OFICINA_CONFIRMO_BANCO_PRODUCAO);
+if (ambiente === 'production' && confirmo !== url) {
+  const id = u => (u ? u.replace(/^https:\/\/([^.]+).*/, '$1') : '(vazia)');
+  console.error('[config] ERRO: OFICINA_CONFIRMO_BANCO_PRODUCAO tem que ser a mesma Project URL de OFICINA_SUPABASE_URL.');
+  console.error(`[config] OFICINA_SUPABASE_URL → projeto ${id(url)} · OFICINA_CONFIRMO_BANCO_PRODUCAO → ${confirmo === null ? 'não parece uma URL do Supabase' : id(confirmo)}`);
+  console.error('[config] Confira se a variável está marcada em "Production" e faça Redeploy.');
   process.exit(1);
 }
 if (ambiente === 'local' && !url) {
