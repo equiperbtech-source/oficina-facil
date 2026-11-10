@@ -23,16 +23,20 @@ const chave = (process.env.OFICINA_SUPABASE_ANON_KEY || '').trim();
 const destino = path.join(__dirname, '..', 'js', 'config.js');
 
 const dominio = String(process.env.OFICINA_DOMINIO || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^(app|www)\./, '').replace(/\/.*$/, '');
-if (ambiente === 'production' && !url) {
+// Opção explícita para publicar em produção SEM banco (só para ver as telas): OFICINA_SEM_BANCO=1.
+// O app abre em modo local (dados só no navegador). Tire a variável quando cadastrar o Supabase.
+const semBanco = process.env.OFICINA_SEM_BANCO === '1' && !url;
+if (ambiente === 'production' && !url && !semBanco) {
   console.error('[config] ERRO: produção sem OFICINA_SUPABASE_URL. Cadastre as variáveis na Vercel (veja .env.example).');
   process.exit(1);
 }
 // Trava contra engano: em produção, só usa o banco se houver confirmação explícita.
 // (Ex.: variáveis do Supabase de TESTE marcadas sem querer também em "Production".)
-if (ambiente === 'production' && process.env.OFICINA_CONFIRMO_BANCO_PRODUCAO !== url) {
+if (ambiente === 'production' && !semBanco && process.env.OFICINA_CONFIRMO_BANCO_PRODUCAO !== url) {
   console.error('[config] ERRO: produção sem OFICINA_CONFIRMO_BANCO_PRODUCAO igual à OFICINA_SUPABASE_URL.');
   process.exit(1);
 }
+if (semBanco) console.log('[config] AVISO: produção SEM banco (OFICINA_SEM_BANCO=1): modo local, só para ver as telas.');
 if (ambiente === 'local' && !url) {
   console.log('[config] fora da Vercel e sem variáveis: nada alterado');
   process.exit(0);
