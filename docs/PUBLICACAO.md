@@ -67,8 +67,8 @@ Tempo: ~40 minutos. Faça na ordem. Nenhuma chave vai para o código: tudo fica 
 
 ### 1. Supabase (o banco)
 1. Em **supabase.com**, crie um projeto novo (região **São Paulo**). Guarde a senha do banco.
-2. **SQL Editor → New query**: cole o conteúdo de `supabase/schema.sql` e rode **uma vez**.
-3. Nova query: cole `supabase/saas/TUDO.sql` e rode. (Pode rodar de novo sem problema.)
+2. **SQL Editor → New query**: cole o conteúdo de `supabase/saas/TUDO.sql` e rode. É o banco inteiro (base única + migrações); pode rodar de novo sem problema.
+3. (Não use os arquivos de `supabase/legado/`: são só histórico.)
 4. Ainda no SQL Editor, cadastre você como **super admin** (troque pelo seu e-mail de login, depois de criar sua conta no app):
    ```sql
    insert into public.super_admins(user_id) select id from auth.users where email = 'SEU-EMAIL';

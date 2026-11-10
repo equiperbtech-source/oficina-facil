@@ -1,11 +1,398 @@
 -- =====================================================================
--- TODAS AS MIGRAÇÕES DO SAAS, EM ORDEM (gerado por scripts/juntar-migracoes.cjs — não editar à mão)
--- Pré-requisito: supabase/schema.sql já rodado. Seguro rodar de novo (idempotente).
--- Banco novo: rode antes o supabase/schema.sql (uma vez só) e depois este arquivo.
--- Arquivos: 01_multiloja.sql, 02_planos.sql, 03_modulos.sql, 04_pagamentos.sql, 05_notas.sql, 06_tema.sql, 07_admin.sql, 08_vitrine_pedidos.sql, 09_teste_restrito.sql, 10_certificado.sql, 11_dias_teste.sql, 12_convite_seguro.sql, 13_idioma.sql, 14_hotmart.sql, 15_garantia_os.sql, 16_comunicados.sql, 17_comunicados_provedor.sql, 18_email_vitrine.sql, 19_email_plataforma.sql, 20_idioma_hotmart.sql, 21_moeda_loja.sql, 22_uma_loja_por_conta.sql, 23_juntar_lojas.sql, 24_trocar_email.sql, 25_fotos_aparelho.sql, 26_cards_bancada.sql, 27_carrinhos_abandonados.sql, 28_tema_claro.sql, 29_azul_escuro.sql, 30_link_oficina.sql
+-- BANCO COMPLETO DA OFICINA SIMPLES: BASE + MIGRAÇÕES, EM ORDEM (gerado por scripts/juntar-migracoes.cjs — não editar à mão)
+-- Banco novo: rode só este arquivo (ele começa pelo 00_base.sql). Seguro rodar de novo (idempotente).
+-- Arquivos: 00_base.sql, 28_tema_claro.sql, 29_azul_escuro.sql, 30_link_oficina.sql, 31_unir_oficinas.sql
 -- =====================================================================
 
--- >>>>>>>>>>>>>>>>>>>> 01_multiloja.sql >>>>>>>>>>>>>>>>>>>>
+-- >>>>>>>>>>>>>>>>>>>> 00_base.sql >>>>>>>>>>>>>>>>>>>>
+-- =====================================================================
+-- OFICINA SIMPLES · 00_base.sql — base única do banco novo
+-- Banco novo: rode só o supabase/saas/TUDO.sql (que começa por este arquivo). Seguro rodar de novo.
+-- Feito a partir do schema e das migrações 01–27 do sistema original, na ordem, com estas diferenças:
+--   - sem "oficina padrão": página pública sem oficina no endereço não cai em oficina nenhuma;
+--   - sem função que apaga oficinas (a junção antiga 23 e a "unir loja solo" saíram;
+--     a união segura de duplicadas é a 31, que nunca apaga nem sobrescreve);
+--   - índice único "1 oficina principal por dono" (fim do arquivo);
+--   - textos do pedido do cliente falando de veículo.
+-- Os arquivos antigos ficam em supabase/legado/ só como histórico (não rode).
+-- =====================================================================
+
+-- >>>>>>>>>>>>>>>>>>>> origem: schema.sql >>>>>>>>>>>>>>>>>>>>
+-- =============================================================
+-- Oficina Simples — esquema do Supabase
+-- Cole este arquivo inteiro no SQL Editor do Supabase e clique em Run.
+-- Pode ser executado mais de uma vez sem problemas.
+-- =============================================================
+
+create extension if not exists pgcrypto;
+
+-- Lojas (cada assistência é uma loja; funcionários entram por código de convite)
+create table if not exists public.lojas (
+  id uuid primary key default gen_random_uuid(),
+  nome text not null,
+  codigo_convite text unique not null default upper(substr(md5(gen_random_uuid()::text), 1, 8)),
+  criado_em timestamptz not null default now()
+);
+
+-- Quem tem acesso a cada loja
+create table if not exists public.membros (
+  loja_id uuid not null references public.lojas(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  email text,
+  papel text not null default 'membro' check (papel in ('dono', 'membro')),
+  criado_em timestamptz not null default now(),
+  primary key (loja_id, user_id)
+);
+create index if not exists membros_user_idx on public.membros(user_id);
+
+-- Todos os registros do app (OS, clientes, estoque, vendas, financeiro...)
+-- Cada linha é um registro de uma coleção, guardado como JSON.
+create table if not exists public.itens (
+  loja_id uuid not null references public.lojas(id) on delete cascade,
+  colecao text not null,
+  id text not null,
+  dados jsonb not null,
+  atualizado_em timestamptz not null default now(),
+  atualizado_por uuid default auth.uid(),
+  primary key (loja_id, colecao, id)
+);
+create index if not exists itens_atualizado_idx on public.itens(loja_id, atualizado_em);
+
+create or replace function public.tocar_itens() returns trigger language plpgsql as $$
+begin
+  new.atualizado_em := now();
+  new.atualizado_por := auth.uid();
+  return new;
+end $$;
+drop trigger if exists itens_tocar on public.itens;
+create trigger itens_tocar before insert or update on public.itens
+  for each row execute function public.tocar_itens();
+
+-- ---------- Funções auxiliares de permissão ----------
+create or replace function public.minhas_lojas() returns setof uuid
+  language sql stable security definer set search_path = public as $$
+  select loja_id from public.membros where user_id = auth.uid()
+$$;
+
+create or replace function public.sou_dono(l uuid) returns boolean
+  language sql stable security definer set search_path = public as $$
+  select exists(select 1 from public.membros where loja_id = l and user_id = auth.uid() and papel = 'dono')
+$$;
+
+-- ---------- Segurança (RLS): cada usuário só vê a própria loja ----------
+alter table public.lojas enable row level security;
+alter table public.membros enable row level security;
+alter table public.itens enable row level security;
+
+drop policy if exists lojas_ver on public.lojas;
+create policy lojas_ver on public.lojas for select using (id in (select public.minhas_lojas()));
+drop policy if exists lojas_editar on public.lojas;
+create policy lojas_editar on public.lojas for update using (public.sou_dono(id));
+
+drop policy if exists membros_ver on public.membros;
+create policy membros_ver on public.membros for select using (loja_id in (select public.minhas_lojas()));
+drop policy if exists membros_remover on public.membros;
+create policy membros_remover on public.membros for delete
+  using ((public.sou_dono(loja_id) and user_id <> auth.uid()) or (user_id = auth.uid() and papel <> 'dono'));
+
+drop policy if exists itens_ver on public.itens;
+create policy itens_ver on public.itens for select using (loja_id in (select public.minhas_lojas()));
+-- As configurações da loja (meta/settings) só o dono altera; o resto a equipe toda altera
+drop policy if exists itens_inserir on public.itens;
+create policy itens_inserir on public.itens for insert with check (loja_id in (select public.minhas_lojas())
+  and (not (colecao = 'meta' and id = 'settings') or public.sou_dono(loja_id)));
+drop policy if exists itens_editar on public.itens;
+create policy itens_editar on public.itens for update using (loja_id in (select public.minhas_lojas()))
+  with check (loja_id in (select public.minhas_lojas()) and (not (colecao = 'meta' and id = 'settings') or public.sou_dono(loja_id)));
+drop policy if exists itens_apagar on public.itens;
+create policy itens_apagar on public.itens for delete using (loja_id in (select public.minhas_lojas())
+  and (not (colecao = 'meta' and id = 'settings') or public.sou_dono(loja_id)));
+
+-- ---------- Ações (RPC) ----------
+-- Cria uma loja e torna o usuário atual o dono
+create or replace function public.criar_loja(p_nome text) returns public.lojas
+  language plpgsql security definer set search_path = public as $$
+declare l public.lojas;
+begin
+  if auth.uid() is null then raise exception 'não autenticado'; end if;
+  insert into public.lojas(nome) values (coalesce(nullif(trim(p_nome), ''), 'Minha Loja')) returning * into l;
+  insert into public.membros(loja_id, user_id, email, papel) values (l.id, auth.uid(), auth.jwt() ->> 'email', 'dono');
+  return l;
+end $$;
+
+-- Entra numa loja existente usando o código de convite
+drop function if exists public.entrar_na_loja(text);   -- (a versão final, com outro retorno, vem mais abaixo)
+create or replace function public.entrar_na_loja(p_codigo text) returns public.lojas
+  language plpgsql security definer set search_path = public as $$
+declare l public.lojas;
+begin
+  if auth.uid() is null then raise exception 'não autenticado'; end if;
+  select * into l from public.lojas where codigo_convite = upper(trim(p_codigo));
+  if not found then raise exception 'Código de convite inválido'; end if;
+  insert into public.membros(loja_id, user_id, email, papel) values (l.id, auth.uid(), auth.jwt() ->> 'email', 'membro')
+    on conflict (loja_id, user_id) do nothing;
+  perform public.unir_loja_solo(auth.uid(), l.id);
+  return l;
+end $$;
+
+-- Gera um novo código de convite (só o dono)
+create or replace function public.novo_codigo_convite(p_loja uuid) returns text
+  language plpgsql security definer set search_path = public as $$
+declare c text;
+begin
+  if not public.sou_dono(p_loja) then raise exception 'apenas o dono pode fazer isso'; end if;
+  c := upper(substr(md5(gen_random_uuid()::text), 1, 8));
+  update public.lojas set codigo_convite = c where id = p_loja;
+  return c;
+end $$;
+
+-- só usuários logados podem chamar as ações
+revoke all on function public.criar_loja(text) from public, anon;
+revoke all on function public.entrar_na_loja(text) from public, anon;
+revoke all on function public.novo_codigo_convite(uuid) from public, anon;
+grant execute on function public.criar_loja(text) to authenticated;
+grant execute on function public.entrar_na_loja(text) to authenticated;
+grant execute on function public.novo_codigo_convite(uuid) to authenticated;
+
+-- ---------- Tempo real ----------
+do $$ begin
+  alter publication supabase_realtime add table public.itens;
+exception when duplicate_object then null; end $$;
+
+-- ---------- Acompanhamento público da OS (link enviado ao cliente) ----------
+-- Quem tem o link (código secreto de 22 caracteres) vê apenas os dados daquela OS,
+-- sem login e sem acesso a nenhum outro dado da loja.
+create index if not exists itens_os_token_idx on public.itens ((dados ->> 'token')) where colecao = 'os';
+
+create or replace function public.acompanhar_os(p_token text) returns jsonb
+  language sql stable security definer set search_path = public as $$
+  select jsonb_build_object(
+    'os', jsonb_build_object(
+      'numero', o.dados -> 'numero', 'status', o.dados -> 'status', 'historico', o.dados -> 'historico',
+      'aparelho', jsonb_build_object('modelo', o.dados #> '{aparelho,modelo}', 'imei', o.dados #> '{aparelho,imei}', 'idTipo', o.dados #> '{aparelho,idTipo}', 'cor', o.dados #> '{aparelho,cor}'),
+      'defeito', o.dados -> 'defeito', 'servico', o.dados -> 'servico',
+      'valor', o.dados -> 'valor', 'desconto', o.dados -> 'desconto',
+      'pecas', (select coalesce(jsonb_agg(jsonb_build_object('nome', p -> 'nome', 'qtd', p -> 'qtd')), '[]'::jsonb) from jsonb_array_elements(coalesce(o.dados -> 'pecas', '[]'::jsonb)) p),
+      'previsao', o.dados -> 'previsao', 'criadoEm', o.dados -> 'criadoEm', 'concluidoEm', o.dados -> 'concluidoEm',
+      'pagoEm', o.dados -> 'pagoEm', 'entregueEm', o.dados -> 'entregueEm', 'formaPagamento', o.dados #> '{pagamento,forma}',
+      'assinaturaCliente', o.dados -> 'assinaturaCliente'),
+    'cliente', (select jsonb_build_object('nome', c.dados -> 'nome') from public.itens c
+                where c.loja_id = o.loja_id and c.colecao = 'clientes' and c.id = o.dados ->> 'clienteId'),
+    'loja', (select jsonb_build_object('nome', s.dados -> 'loja', 'cnpj', s.dados -> 'cnpj', 'telefone', s.dados -> 'telefone',
+                    'endereco', s.dados -> 'endereco', 'instagram', s.dados -> 'instagram', 'termosGarantia', s.dados -> 'termosGarantia',
+                    'tecnico', (select t -> 'nome' from jsonb_array_elements(coalesce(s.dados -> 'tecnicos', '[]'::jsonb)) t where t ->> 'id' = o.dados ->> 'tecnicoId' limit 1),
+                    'assinaturaTecnico', coalesce((select t -> 'assinatura' from jsonb_array_elements(coalesce(s.dados -> 'tecnicos', '[]'::jsonb)) t where t ->> 'id' = o.dados ->> 'tecnicoId' limit 1), s.dados -> 'assinaturaDono'))
+             from public.itens s where s.loja_id = o.loja_id and s.colecao = 'meta' and s.id = 'settings')
+  )
+  from public.itens o
+  where o.colecao = 'os' and length(p_token) >= 16 and o.dados ->> 'token' = p_token
+    and coalesce((o.dados ->> 'deleted')::boolean, false) = false
+  limit 1
+$$;
+revoke all on function public.acompanhar_os(text) from public;
+grant execute on function public.acompanhar_os(text) to anon, authenticated;
+
+-- ---------- Funcionários criados pelo dono (Configurações → Equipe) ----------
+alter table public.membros add column if not exists nome text;
+
+-- O app cria a conta do funcionário (e-mail + senha) e o dono chama esta função
+-- para colocá-la na loja. Só o dono consegue.
+create or replace function public.adicionar_funcionario(p_loja uuid, p_email text, p_nome text) returns jsonb
+  language plpgsql security definer set search_path = public as $$
+declare u record;
+begin
+  if not public.sou_dono(p_loja) then raise exception 'apenas o dono pode adicionar funcionários'; end if;
+  select id, email, email_confirmed_at into u from auth.users where lower(email) = lower(trim(p_email)) limit 1;
+  if not found then raise exception 'Conta não encontrada para este e-mail'; end if;
+  insert into public.membros(loja_id, user_id, email, nome, papel) values (p_loja, u.id, u.email, nullif(trim(p_nome), ''), 'membro')
+    on conflict (loja_id, user_id) do update set nome = coalesce(excluded.nome, public.membros.nome);
+  perform public.unir_loja_solo(u.id, p_loja);
+  return jsonb_build_object('user_id', u.id, 'confirmado', u.email_confirmed_at is not null);
+end $$;
+revoke all on function public.adicionar_funcionario(uuid, text, text) from public, anon;
+grant execute on function public.adicionar_funcionario(uuid, text, text) to authenticated;
+
+-- ---------- Pedidos de orçamento feitos pelo próprio cliente (página pública /pedido) ----------
+-- Dados públicos da loja para o cabeçalho da página de pedido
+create or replace function public.info_loja(p_loja uuid) returns jsonb
+  language sql stable security definer set search_path = public as $$
+  select jsonb_build_object('nome', coalesce(s.dados ->> 'loja', l.nome), 'telefone', s.dados -> 'telefone',
+                            'instagram', s.dados -> 'instagram', 'endereco', s.dados -> 'endereco')
+  from public.lojas l left join public.itens s on s.loja_id = l.id and s.colecao = 'meta' and s.id = 'settings'
+  where l.id = p_loja
+$$;
+revoke all on function public.info_loja(uuid) from public;
+grant execute on function public.info_loja(uuid) to anon, authenticated;
+
+-- Cliente envia o pedido (sem login). Valida os campos e limita envios repetidos.
+create or replace function public.criar_pedido(p_loja uuid, p_nome text, p_telefone text, p_marca text,
+                                               p_modelo text, p_defeito text, p_urgencia text) returns jsonb
+  language plpgsql security definer set search_path = public as $$
+declare v_tel text := regexp_replace(coalesce(p_telefone, ''), '\D', '', 'g'); v_num int; v_id text;
+begin
+  if not exists (select 1 from public.lojas where id = p_loja) then raise exception 'Oficina não encontrada'; end if;
+  if length(trim(coalesce(p_nome, ''))) < 3 then raise exception 'Informe seu nome completo'; end if;
+  if length(v_tel) < 10 or length(v_tel) > 13 then raise exception 'Informe um WhatsApp válido com DDD'; end if;
+  if length(trim(coalesce(p_modelo, ''))) < 2 then raise exception 'Informe o modelo do veículo'; end if;
+  if length(trim(coalesce(p_defeito, ''))) < 3 then raise exception 'Conte o que está acontecendo com o veículo'; end if;
+  if (select count(*) from public.itens where loja_id = p_loja and colecao = 'pedidos'
+        and dados ->> 'telefone' = v_tel and atualizado_em > now() - interval '10 minutes') >= 3
+     or (select count(*) from public.itens where loja_id = p_loja and colecao = 'pedidos'
+        and atualizado_em > now() - interval '1 hour') >= 60 then
+    raise exception 'Muitos pedidos em pouco tempo. Tente novamente mais tarde ou chame no WhatsApp.';
+  end if;
+  select coalesce(max((dados ->> 'numero')::int), 0) + 1 into v_num from public.itens where loja_id = p_loja and colecao = 'pedidos';
+  v_id := 'ped-' || substr(md5(gen_random_uuid()::text), 1, 16);
+  insert into public.itens (loja_id, colecao, id, dados) values (p_loja, 'pedidos', v_id, jsonb_build_object(
+    'id', v_id, 'numero', v_num, 'nome', left(trim(p_nome), 100), 'telefone', v_tel,
+    'marca', left(trim(coalesce(p_marca, '')), 40), 'modelo', left(trim(p_modelo), 80), 'defeito', left(trim(p_defeito), 1000),
+    'urgencia', case when p_urgencia in ('baixa', 'media', 'alta') then p_urgencia else 'media' end,
+    'status', 'novo', 'lido', false, 'criadoEm', to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')));
+  return jsonb_build_object('numero', v_num);
+end $$;
+revoke all on function public.criar_pedido(uuid, text, text, text, text, text, text) from public;
+grant execute on function public.criar_pedido(uuid, text, text, text, text, text, text) to anon, authenticated;
+
+-- ---------- Aviso por e-mail de pedido de orçamento (dono e funcionários) ----------
+-- Envio pelo Brevo (brevo.com, grátis até 300 e-mails/dia) usando pg_net, direto do banco.
+do $$ begin
+  create extension if not exists pg_net;
+exception when others then raise notice 'pg_net indisponível: %', sqlerrm; end $$;
+
+alter table public.membros add column if not exists notificar_pedidos boolean not null default true;
+
+-- Configuração privada de e-mail por loja (sem acesso pelo app: só as funções abaixo leem)
+create table if not exists public.lojas_email (
+  loja_id uuid primary key references public.lojas(id) on delete cascade,
+  api_key text,
+  remetente text,
+  site_url text,
+  ativo boolean not null default true,
+  atualizado_em timestamptz not null default now()
+);
+alter table public.lojas_email enable row level security;
+revoke all on public.lojas_email from anon, authenticated;
+
+create or replace function public.esc_html(t text) returns text language sql immutable as $$
+  select replace(replace(replace(replace(coalesce(t, ''), '&', '&amp;'), '<', '&lt;'), '>', '&gt;'), '"', '&quot;')
+$$;
+
+-- Monta e envia o e-mail (usado pelo gatilho e pelo teste)
+create or replace function public.enviar_email_loja(p_loja uuid, p_assunto text, p_html text) returns bigint
+  language plpgsql security definer set search_path = public as $$
+declare cfg public.lojas_email; dest jsonb; nome text; req bigint;
+begin
+  select * into cfg from public.lojas_email where loja_id = p_loja and ativo and coalesce(api_key, '') <> '';
+  if not found then return null; end if;
+  select jsonb_agg(jsonb_build_object('email', m.email)) into dest from public.membros m
+   where m.loja_id = p_loja and coalesce(m.email, '') <> '' and m.notificar_pedidos;
+  if dest is null then return null; end if;
+  select coalesce(s.dados ->> 'loja', l.nome) into nome from public.lojas l
+    left join public.itens s on s.loja_id = l.id and s.colecao = 'meta' and s.id = 'settings' where l.id = p_loja;
+  select net.http_post(
+    url := 'https://api.brevo.com/v3/smtp/email',
+    headers := jsonb_build_object('api-key', cfg.api_key, 'Content-Type', 'application/json', 'accept', 'application/json'),
+    body := jsonb_build_object('sender', jsonb_build_object('email', cfg.remetente, 'name', coalesce(nome, 'Oficina Simples')), 'to', dest, 'subject', p_assunto, 'htmlContent', p_html),
+    timeout_milliseconds := 8000) into req;
+  return req;
+end $$;
+revoke all on function public.enviar_email_loja(uuid, text, text) from public, anon, authenticated;
+
+create or replace function public.html_pedido(d jsonb, site text) returns text language sql immutable as $$
+  select '<div style="font-family:Arial,sans-serif;background:#000;color:#fff;padding:24px;border-radius:12px;max-width:560px">'
+    || '<div style="color:#d4af37;font-size:20px;font-weight:bold;margin-bottom:6px">Novo pedido de orçamento' || coalesce(' nº ' || (d ->> 'numero'), '') || '</div>'
+    || '<div style="color:#aaa;font-size:13px;margin-bottom:16px">Enviado pelo cliente pelo link do site</div>'
+    || '<table style="width:100%;font-size:15px;color:#fff;border-collapse:collapse">'
+    || '<tr><td style="color:#aaa;padding:6px 0">Cliente</td><td><b>' || esc_html(d ->> 'nome') || '</b></td></tr>'
+    || '<tr><td style="color:#aaa;padding:6px 0">WhatsApp</td><td><a style="color:#d4af37" href="https://wa.me/55' || esc_html(d ->> 'telefone') || '">' || esc_html(d ->> 'telefone') || '</a></td></tr>'
+    || '<tr><td style="color:#aaa;padding:6px 0">Aparelho</td><td>' || esc_html(d ->> 'marca') || ' · <b>' || esc_html(d ->> 'modelo') || '</b></td></tr>'
+    || '<tr><td style="color:#aaa;padding:6px 0">Urgência</td><td><b style="color:' || case d ->> 'urgencia' when 'alta' then '#f87171">URGENTE' when 'baixa' then '#60a5fa">Baixa' else '#fb923c">Média' end || '</b></td></tr>'
+    || '</table><div style="margin-top:14px;padding:12px;background:#151515;border-radius:8px;color:#ddd">' || esc_html(d ->> 'defeito') || '</div>'
+    || case when coalesce(site, '') <> '' then '<a href="' || esc_html(site) || '/#/os?tab=pedidos" style="display:inline-block;margin-top:18px;background:#d4af37;color:#000;padding:12px 20px;border-radius:8px;font-weight:bold;text-decoration:none">Abrir no app</a>' else '' end
+    || '</div>'
+$$;
+
+-- Gatilho: pedido novo → e-mail para a equipe (nunca impede o pedido de ser salvo)
+create or replace function public.avisar_pedido_email() returns trigger
+  language plpgsql security definer set search_path = public as $$
+declare site text;
+begin
+  if current_setting('oficina.migrando', true) = '1' then return new; end if;
+  select site_url into site from public.lojas_email where loja_id = new.loja_id;
+  perform public.enviar_email_loja(new.loja_id,
+    'Novo pedido de orçamento: ' || coalesce(new.dados ->> 'modelo', '') || ' · ' || coalesce(new.dados ->> 'nome', '') || case when new.dados ->> 'urgencia' = 'alta' then ' (URGENTE)' else '' end,
+    public.html_pedido(new.dados, site));
+  return new;
+exception when others then
+  raise warning 'aviso de pedido por e-mail falhou: %', sqlerrm;
+  return new;
+end $$;
+drop trigger if exists itens_avisar_pedido on public.itens;
+create trigger itens_avisar_pedido after insert on public.itens
+  for each row when (new.colecao = 'pedidos') execute function public.avisar_pedido_email();
+
+-- Dono configura o e-mail pelo app (a chave fica guardada no banco, o app não consegue ler de volta)
+create or replace function public.configurar_email(p_loja uuid, p_api_key text, p_remetente text, p_site text, p_ativo boolean) returns jsonb
+  language plpgsql security definer set search_path = public as $$
+begin
+  if not public.sou_dono(p_loja) then raise exception 'apenas o dono pode configurar'; end if;
+  insert into public.lojas_email(loja_id, api_key, remetente, site_url, ativo) values (p_loja, nullif(trim(p_api_key), ''), trim(p_remetente), p_site, p_ativo)
+  on conflict (loja_id) do update set
+    api_key = coalesce(nullif(trim(excluded.api_key), ''), public.lojas_email.api_key),
+    remetente = excluded.remetente, site_url = excluded.site_url, ativo = excluded.ativo, atualizado_em = now();
+  return public.status_email(p_loja);
+end $$;
+
+create or replace function public.status_email(p_loja uuid) returns jsonb
+  language sql stable security definer set search_path = public as $$
+  select case when p_loja in (select public.minhas_lojas()) then
+    coalesce((select jsonb_build_object('configurado', coalesce(api_key, '') <> '', 'remetente', remetente, 'ativo', ativo,
+      'chave', case when coalesce(api_key, '') <> '' then '••••' || right(api_key, 4) else '' end) from public.lojas_email where loja_id = p_loja),
+      '{"configurado": false}'::jsonb) end
+$$;
+
+create or replace function public.testar_email(p_loja uuid) returns bigint
+  language plpgsql security definer set search_path = public as $$
+declare site text;
+begin
+  if not public.sou_dono(p_loja) then raise exception 'apenas o dono pode testar'; end if;
+  select site_url into site from public.lojas_email where loja_id = p_loja;
+  return public.enviar_email_loja(p_loja, 'Teste: avisos de pedido de orçamento funcionando ✅',
+    public.html_pedido(jsonb_build_object('numero', 0, 'nome', 'Cliente de teste', 'telefone', '48999999999', 'marca', 'Apple', 'modelo', 'iPhone 13', 'defeito', 'Este é um e-mail de teste do aviso de pedidos.', 'urgencia', 'media'), site));
+end $$;
+
+-- Resultado do envio (o Brevo responde 201 quando aceita)
+create or replace function public.resultado_email(p_id bigint) returns jsonb
+  language plpgsql security definer set search_path = public as $$
+declare r jsonb;
+begin
+  execute 'select jsonb_build_object(''status'', status_code, ''resposta'', left(content::text, 300), ''erro'', error_msg) from net._http_response where id = $1' into r using p_id;
+  return r;
+exception when others then return null;
+end $$;
+
+-- Dono escolhe quem recebe (ou cada um desliga o próprio aviso)
+create or replace function public.definir_aviso_email(p_loja uuid, p_user uuid, p_ativo boolean) returns void
+  language plpgsql security definer set search_path = public as $$
+begin
+  if not (public.sou_dono(p_loja) or p_user = auth.uid()) then raise exception 'sem permissão'; end if;
+  update public.membros set notificar_pedidos = p_ativo where loja_id = p_loja and user_id = p_user;
+end $$;
+
+revoke all on function public.configurar_email(uuid, text, text, text, boolean) from public, anon;
+revoke all on function public.status_email(uuid) from public, anon;
+revoke all on function public.testar_email(uuid) from public, anon;
+revoke all on function public.resultado_email(bigint) from public, anon;
+revoke all on function public.definir_aviso_email(uuid, uuid, boolean) from public, anon;
+grant execute on function public.configurar_email(uuid, text, text, text, boolean) to authenticated;
+grant execute on function public.status_email(uuid) to authenticated;
+grant execute on function public.testar_email(uuid) to authenticated;
+grant execute on function public.resultado_email(bigint) to authenticated;
+grant execute on function public.definir_aviso_email(uuid, uuid, boolean) to authenticated;
+
+
+
+-- >>>>>>>>>>>>>>>>>>>> origem: 01_multiloja.sql >>>>>>>>>>>>>>>>>>>>
 -- =====================================================================
 -- SaaS · Etapa 1: multi-loja por endereço (host) e acompanhamento em tempo real
 -- Migração ADITIVA: só cria colunas/tabelas/funções novas. Não altera nem apaga
@@ -111,11 +498,8 @@ create trigger itens_avisar_os_publica after update on public.itens
 
 -- Loja padrão da plataforma = a loja mais antiga (a sua). Mantém funcionando os links antigos
 -- sem loja no endereço (ex.: /pedido) mesmo depois que outras lojas forem cadastradas.
-insert into public.plataforma_config(chave, valor)
-  select 'loja_padrao', to_jsonb(id::text) from public.lojas order by criado_em limit 1
-on conflict (chave) do nothing;
 
--- Resolve a loja de uma página pública: id no link, endereço curto, domínio ou loja padrão
+-- Resolve a oficina de uma página pública: id no link, endereço curto ou domínio (nunca uma oficina "padrão")
 create or replace function public.loja_publica(p_ref text, p_host text) returns uuid
   language plpgsql stable security definer set search_path = public as $$
 declare r text := trim(coalesce(p_ref, '')); l uuid;
@@ -126,11 +510,6 @@ begin
     l := public.loja_por_slug(r);
   else
     l := (public.loja_por_host(p_host) ->> 'id')::uuid;
-    if l is null then select (valor #>> '{}')::uuid into l from public.plataforma_config where chave = 'loja_padrao'; end if;
-    -- sem loja padrão válida: se existir uma única loja, usa ela
-    if l is null or not exists (select 1 from public.lojas where id = l) then
-      select id into l from public.lojas where (select count(*) from public.lojas) = 1;
-    end if;
   end if;
   return (select id from public.lojas where id = l);
 end $$;
@@ -138,7 +517,7 @@ revoke all on function public.loja_publica(text, text) from public;
 grant execute on function public.loja_publica(text, text) to anon, authenticated;
 
 
--- >>>>>>>>>>>>>>>>>>>> 02_planos.sql >>>>>>>>>>>>>>>>>>>>
+-- >>>>>>>>>>>>>>>>>>>> origem: 02_planos.sql >>>>>>>>>>>>>>>>>>>>
 -- =====================================================================
 -- SaaS · Etapa 2: planos, recursos, situação da assinatura, papéis e limites
 -- ADITIVA: cria tabelas/colunas/funções e acrescenta condições às regras (RLS).
@@ -443,7 +822,7 @@ grant execute on function public.loja_situacao(uuid), public.loja_plano(uuid), p
   public.minha_assinatura(uuid) to authenticated;
 
 
--- >>>>>>>>>>>>>>>>>>>> 03_modulos.sql >>>>>>>>>>>>>>>>>>>>
+-- >>>>>>>>>>>>>>>>>>>> origem: 03_modulos.sql >>>>>>>>>>>>>>>>>>>>
 -- =====================================================================
 -- SaaS · Etapa 3: vitrine pública, fotos (Storage), notas de entrada (XML) e lotes
 -- ADITIVA. Os dados novos (lotes, notas de entrada, follow-ups, metas por funcionário)
@@ -515,7 +894,7 @@ exception when undefined_table or invalid_schema_name or undefined_function then
 end $$;
 
 
--- >>>>>>>>>>>>>>>>>>>> 04_pagamentos.sql >>>>>>>>>>>>>>>>>>>>
+-- >>>>>>>>>>>>>>>>>>>> origem: 04_pagamentos.sql >>>>>>>>>>>>>>>>>>>>
 -- =====================================================================
 -- SaaS · Etapa 4: pagamento recorrente (Kiwify) — eventos, mapeamento de produtos,
 -- fila de compras sem loja e regras que mudam plano/situação.
@@ -738,7 +1117,7 @@ revoke all on function public.checkout_planos() from public, anon;
 grant execute on function public.checkout_planos() to authenticated;
 
 
--- >>>>>>>>>>>>>>>>>>>> 05_notas.sql >>>>>>>>>>>>>>>>>>>>
+-- >>>>>>>>>>>>>>>>>>>> origem: 05_notas.sql >>>>>>>>>>>>>>>>>>>>
 -- =====================================================================
 -- SaaS · Etapa 5: notas fiscais (somente Pro Max)
 -- Franquia mensal do plano + créditos comprados (não expiram). Só nota AUTORIZADA consome.
@@ -1050,7 +1429,7 @@ $$;
 revoke all on function public.email_dono(uuid) from public, anon, authenticated;
 
 
--- >>>>>>>>>>>>>>>>>>>> 06_tema.sql >>>>>>>>>>>>>>>>>>>>
+-- >>>>>>>>>>>>>>>>>>>> origem: 06_tema.sql >>>>>>>>>>>>>>>>>>>>
 -- =====================================================================
 -- SaaS · Etapa 6: personalização visual (white-label) por loja
 -- Layout fixo; só a aparência varia (logo, cores, fonte da lista, nome, slogan, rodapé, dados da empresa).
@@ -1142,7 +1521,7 @@ revoke all on function public.tema_por_os(text) from public;
 grant execute on function public.tema_por_os(text) to anon, authenticated;
 
 
--- >>>>>>>>>>>>>>>>>>>> 07_admin.sql >>>>>>>>>>>>>>>>>>>>
+-- >>>>>>>>>>>>>>>>>>>> origem: 07_admin.sql >>>>>>>>>>>>>>>>>>>>
 -- =====================================================================
 -- SaaS · Etapa 7: painel super admin
 -- Quem é super admin fica numa tabela sem acesso pelo app. Toda função admin confere de novo
@@ -1495,7 +1874,7 @@ revoke all on function public.auditar(text, uuid, jsonb, jsonb, text) from publi
 revoke all on function public.admin_estado(uuid) from public, anon, authenticated;
 
 
--- >>>>>>>>>>>>>>>>>>>> 08_vitrine_pedidos.sql >>>>>>>>>>>>>>>>>>>>
+-- >>>>>>>>>>>>>>>>>>>> origem: 08_vitrine_pedidos.sql >>>>>>>>>>>>>>>>>>>>
 -- =====================================================================
 -- SaaS · Etapa 8b: pedidos da vitrine (carrinho do cliente com horário de retirada)
 -- O cliente monta o carrinho na vitrine pública e finaliza com nome, WhatsApp e horário de retirada.
@@ -1550,7 +1929,7 @@ revoke all on function public.criar_pedido_vitrine(text, text, text, text, text,
 grant execute on function public.criar_pedido_vitrine(text, text, text, text, text, jsonb, text) to anon, authenticated;
 
 
--- >>>>>>>>>>>>>>>>>>>> 09_teste_restrito.sql >>>>>>>>>>>>>>>>>>>>
+-- >>>>>>>>>>>>>>>>>>>> origem: 09_teste_restrito.sql >>>>>>>>>>>>>>>>>>>>
 -- =====================================================================
 -- SaaS · Etapa 9: teste grátis sem vitrine e sem notas fiscais
 -- Durante o teste grátis a loja usa o plano do teste (Pro), MENOS os recursos da lista
@@ -1600,7 +1979,7 @@ revoke all on function public.minha_assinatura(uuid) from public, anon;
 grant execute on function public.bloqueado_no_teste(text), public.tem_recurso(uuid, text), public.minha_assinatura(uuid) to authenticated;
 
 
--- >>>>>>>>>>>>>>>>>>>> 10_certificado.sql >>>>>>>>>>>>>>>>>>>>
+-- >>>>>>>>>>>>>>>>>>>> origem: 10_certificado.sql >>>>>>>>>>>>>>>>>>>>
 -- =====================================================================
 -- SaaS · Etapa 10: envio do certificado digital A1 pelo app
 -- A loja envia o arquivo (.pfx/.p12) e a senha pelo app. O servidor (/api/notas/certificado) confere
@@ -1654,7 +2033,7 @@ revoke all on function public.salvar_cadastro_fiscal(uuid, jsonb) from public, a
 grant execute on function public.salvar_cadastro_fiscal(uuid, jsonb) to authenticated;
 
 
--- >>>>>>>>>>>>>>>>>>>> 11_dias_teste.sql >>>>>>>>>>>>>>>>>>>>
+-- >>>>>>>>>>>>>>>>>>>> origem: 11_dias_teste.sql >>>>>>>>>>>>>>>>>>>>
 -- =====================================================================
 -- SaaS · Etapa 11: dias de teste grátis pelo painel /admin
 -- "Dias de teste": define quantos dias de teste a loja ainda tem (aumenta OU diminui; 0 = encerra agora).
@@ -1686,7 +2065,7 @@ revoke all on function public.admin_definir_teste(uuid, int, text) from public, 
 grant execute on function public.admin_definir_teste(uuid, int, text) to authenticated;
 
 
--- >>>>>>>>>>>>>>>>>>>> 12_convite_seguro.sql >>>>>>>>>>>>>>>>>>>>
+-- >>>>>>>>>>>>>>>>>>>> origem: 12_convite_seguro.sql >>>>>>>>>>>>>>>>>>>>
 -- =====================================================================
 -- SaaS · Etapa 12: código de convite seguro
 -- Antes: quem digitasse o código entrava NA HORA como funcionário (sem o dono aprovar) e, se tivesse
@@ -1825,7 +2204,7 @@ revoke all on function public.pedidos_equipe(uuid) from public, anon;
 grant execute on function public.pedidos_equipe(uuid) to authenticated;
 
 
--- >>>>>>>>>>>>>>>>>>>> 13_idioma.sql >>>>>>>>>>>>>>>>>>>>
+-- >>>>>>>>>>>>>>>>>>>> origem: 13_idioma.sql >>>>>>>>>>>>>>>>>>>>
 -- =====================================================================
 -- SaaS · Etapa 13: idioma da loja (português ou espanhol)
 -- Usado pelas páginas do cliente final (acompanhamento do reparo, vitrine) e por quem da equipe
@@ -1850,7 +2229,7 @@ revoke all on function public.definir_idioma(uuid, text) from public, anon;
 grant execute on function public.definir_idioma(uuid, text) to authenticated;
 
 
--- >>>>>>>>>>>>>>>>>>>> 14_hotmart.sql >>>>>>>>>>>>>>>>>>>>
+-- >>>>>>>>>>>>>>>>>>>> origem: 14_hotmart.sql >>>>>>>>>>>>>>>>>>>>
 -- =====================================================================
 -- SaaS · Etapa 14: segunda plataforma de pagamento (Hotmart) junto com a Kiwify.
 -- - Cada evento e cada produto guardam de qual plataforma vieram (kiwify | hotmart).
@@ -2179,7 +2558,7 @@ grant execute on function public.admin_resumo(), public.admin_lojas(text, text, 
   public.admin_salvar_produto(jsonb), public.admin_config(text, jsonb) to authenticated;
 
 
--- >>>>>>>>>>>>>>>>>>>> 15_garantia_os.sql >>>>>>>>>>>>>>>>>>>>
+-- >>>>>>>>>>>>>>>>>>>> origem: 15_garantia_os.sql >>>>>>>>>>>>>>>>>>>>
 -- =====================================================================
 -- SaaS · Etapa 15: prazo de garantia dos reparos ajustável.
 -- O padrão da loja (Configurações, 90 dias = 3 meses) e o prazo de cada OS passam a ir para a página
@@ -2216,7 +2595,7 @@ revoke all on function public.acompanhar_os(text) from public;
 grant execute on function public.acompanhar_os(text) to anon, authenticated;
 
 
--- >>>>>>>>>>>>>>>>>>>> 16_comunicados.sql >>>>>>>>>>>>>>>>>>>>
+-- >>>>>>>>>>>>>>>>>>>> origem: 16_comunicados.sql >>>>>>>>>>>>>>>>>>>>
 -- =====================================================================
 -- SaaS · Etapa 16: comunicados da plataforma para todas as lojas.
 -- O admin escreve uma mensagem em /admin → Comunicados; cada pessoa de qualquer loja vê um pop-up
@@ -2299,7 +2678,7 @@ grant execute on function public.admin_comunicados(), public.admin_salvar_comuni
   public.meus_comunicados(text), public.marcar_comunicado_lido(bigint) to authenticated;
 
 
--- >>>>>>>>>>>>>>>>>>>> 17_comunicados_provedor.sql >>>>>>>>>>>>>>>>>>>>
+-- >>>>>>>>>>>>>>>>>>>> origem: 17_comunicados_provedor.sql >>>>>>>>>>>>>>>>>>>>
 -- =====================================================================
 -- SaaS · Etapa 17: comunicado com duas versões — lojas Kiwify (português) e lojas Hotmart (espanhol).
 -- Um envio só; cada loja recebe a versão de onde assina. Loja que ainda não assinou (teste, cortesia)
@@ -2378,7 +2757,7 @@ grant execute on function public.versao_comunicado(uuid, text), public.meus_comu
   public.admin_salvar_comunicado2(text, text, text, text), public.admin_comunicados() to authenticated;
 
 
--- >>>>>>>>>>>>>>>>>>>> 18_email_vitrine.sql >>>>>>>>>>>>>>>>>>>>
+-- >>>>>>>>>>>>>>>>>>>> origem: 18_email_vitrine.sql >>>>>>>>>>>>>>>>>>>>
 -- =====================================================================
 -- SaaS · Etapa 18: pedido da vitrine também avisa por e-mail.
 -- Mesmo envio do aviso de pedidos de orçamento (Brevo configurado em Configurações → Aviso de pedidos
@@ -2438,7 +2817,7 @@ create trigger itens_avisar_pedido_vitrine after insert on public.itens
 revoke all on function public.html_pedido_vitrine(jsonb, text, text), public.avisar_pedido_vitrine_email() from public, anon, authenticated;
 
 
--- >>>>>>>>>>>>>>>>>>>> 19_email_plataforma.sql >>>>>>>>>>>>>>>>>>>>
+-- >>>>>>>>>>>>>>>>>>>> origem: 19_email_plataforma.sql >>>>>>>>>>>>>>>>>>>>
 -- =====================================================================
 -- SaaS · Etapa 19: aviso de pedidos por e-mail ligado em todas as lojas pela chave da plataforma.
 -- O admin cadastra UMA chave do Brevo (/admin → Produtos e planos → E-mail da plataforma). Toda loja sem
@@ -2592,7 +2971,7 @@ grant execute on function public.admin_email_plataforma(text, text, boolean), pu
 revoke all on function public.site_da_loja(uuid) from authenticated;
 
 
--- >>>>>>>>>>>>>>>>>>>> 20_idioma_hotmart.sql >>>>>>>>>>>>>>>>>>>>
+-- >>>>>>>>>>>>>>>>>>>> origem: 20_idioma_hotmart.sql >>>>>>>>>>>>>>>>>>>>
 -- =====================================================================
 -- SaaS · Etapa 20: idioma da loja para o cliente final e para os e-mails.
 -- Loja que assina pela Hotmart = espanhol; as demais seguem o idioma da loja (Configurações, ou o PT/ES
@@ -2687,7 +3066,7 @@ revoke all on function public.idioma_da_loja(uuid), public.idioma_por_os(text) f
 grant execute on function public.idioma_da_loja(uuid), public.idioma_por_os(text) to anon, authenticated;
 
 
--- >>>>>>>>>>>>>>>>>>>> 21_moeda_loja.sql >>>>>>>>>>>>>>>>>>>>
+-- >>>>>>>>>>>>>>>>>>>> origem: 21_moeda_loja.sql >>>>>>>>>>>>>>>>>>>>
 -- =====================================================================
 -- SaaS · Etapa 21: moeda da loja (reais ou pesos chilenos).
 -- O app guarda nas configurações da loja em que moeda os valores estão (moedaBase: BRL ou CLP; loja do
@@ -2760,7 +3139,7 @@ revoke all on function public.moeda_da_loja(uuid), public.moeda_por_os(text) fro
 grant execute on function public.moeda_da_loja(uuid), public.moeda_por_os(text) to anon, authenticated;
 
 
--- >>>>>>>>>>>>>>>>>>>> 22_uma_loja_por_conta.sql >>>>>>>>>>>>>>>>>>>>
+-- >>>>>>>>>>>>>>>>>>>> origem: 22_uma_loja_por_conta.sql >>>>>>>>>>>>>>>>>>>>
 -- =====================================================================
 -- SaaS · Etapa 22: cada conta cria uma loja só.
 -- Antes, tocar duas vezes em "Criar loja" (ou tentar de novo depois de um erro de internet) criava outra
@@ -2786,119 +3165,7 @@ revoke all on function public.criar_loja(text) from public, anon;
 grant execute on function public.criar_loja(text) to authenticated;
 
 
--- >>>>>>>>>>>>>>>>>>>> 23_juntar_lojas.sql >>>>>>>>>>>>>>>>>>>>
--- =====================================================================
--- SaaS · Etapa 23: juntar lojas duplicadas da mesma conta numa só (sem perder nem duplicar dados).
--- Uso (SQL Editor, como admin do banco): select public.juntar_lojas_por_nome('Palhoça celular');
--- Fica a loja com mais registros (empate: a mais antiga); as outras entram nela e são apagadas.
---  - registros (OS, clientes, vendas...): entram todos; o mesmo registro nas duas fica com a versão mais nova
---  - número repetido (ex.: OS nº 1 nas duas lojas): o que veio de outra loja ganha o próximo número livre
---  - configurações: valem as da loja que fica; o que só existia na outra é acrescentado
---  - contadores de numeração: o maior; equipe, créditos de notas, notas, avisos e pagamentos: vão junto
--- Os gatilhos de e-mail não disparam durante a junção. Tudo numa transação: se algo falhar, nada muda.
--- ADITIVA (funções novas, sem acesso pelo app). Reverter: 23_juntar_lojas_reverter.sql
--- =====================================================================
-
-create or replace function public.juntar_lojas(p_destino uuid, p_origem uuid) returns jsonb
-  language plpgsql security definer set search_path = public as $$
-declare r record; novo int; movidos int := 0; renumerados int := 0; k int; s_dest jsonb; s_orig jsonb;
-begin
-  if p_destino = p_origem then raise exception 'escolha duas lojas diferentes'; end if;
-  if not exists (select 1 from public.lojas where id = p_destino) or not exists (select 1 from public.lojas where id = p_origem) then raise exception 'loja não encontrada'; end if;
-  perform set_config('oficina.migrando', '1', true);
-
-  -- registros: entram todos; o mesmo registro nas duas lojas fica com a versão mais nova
-  for r in select * from public.itens where loja_id = p_origem and colecao <> 'meta' loop
-    if exists (select 1 from public.itens where loja_id = p_destino and colecao = r.colecao and id = r.id) then
-      update public.itens set dados = r.dados, atualizado_em = r.atualizado_em
-       where loja_id = p_destino and colecao = r.colecao and id = r.id and atualizado_em < r.atualizado_em;
-      continue;
-    end if;
-    -- número repetido na loja que fica: próximo número livre
-    if jsonb_typeof(r.dados -> 'numero') = 'number' or (r.dados ->> 'numero') ~ '^\d+$' then
-      if exists (select 1 from public.itens where loja_id = p_destino and colecao = r.colecao and dados ->> 'numero' = r.dados ->> 'numero') then
-        select coalesce(max(public.num_seguro(dados ->> 'numero')), 0)::int + 1 into novo from public.itens where loja_id = p_destino and colecao = r.colecao;
-        r.dados := jsonb_set(r.dados, '{numero}', to_jsonb(novo));
-        renumerados := renumerados + 1;
-      end if;
-    end if;
-    insert into public.itens(loja_id, colecao, id, dados, atualizado_em) values (p_destino, r.colecao, r.id, r.dados, r.atualizado_em);
-    movidos := movidos + 1;
-  end loop;
-
-  -- configurações: as da loja que fica valem; o que só existe na outra é acrescentado
-  select dados into s_dest from public.itens where loja_id = p_destino and colecao = 'meta' and id = 'settings';
-  select dados into s_orig from public.itens where loja_id = p_origem and colecao = 'meta' and id = 'settings';
-  if s_orig is not null then
-    insert into public.itens(loja_id, colecao, id, dados) values (p_destino, 'meta', 'settings', s_orig || coalesce(s_dest, '{}'::jsonb))
-    on conflict (loja_id, colecao, id) do update set dados = s_orig || public.itens.dados, atualizado_em = now();
-  end if;
-  -- contadores de numeração: o maior de cada
-  insert into public.itens(loja_id, colecao, id, dados)
-    select p_destino, 'meta', 'seq', coalesce((select jsonb_object_agg(k2, greatest(coalesce(public.num_seguro(d.dados ->> k2), 0), coalesce(public.num_seguro(o.dados ->> k2), 0)))
-      from public.itens o left join public.itens d on d.loja_id = p_destino and d.colecao = 'meta' and d.id = 'seq',
-           lateral (select jsonb_object_keys(o.dados) as k2 union select jsonb_object_keys(coalesce(d.dados, '{}'::jsonb))) ks
-      where o.loja_id = p_origem and o.colecao = 'meta' and o.id = 'seq'), '{}'::jsonb)
-    where exists (select 1 from public.itens where loja_id = p_origem and colecao = 'meta' and id = 'seq')
-  on conflict (loja_id, colecao, id) do update set dados = public.itens.dados || excluded.dados, atualizado_em = now();
-  -- outros registros "meta" que só existam na outra loja
-  insert into public.itens(loja_id, colecao, id, dados) select p_destino, colecao, id, dados from public.itens
-   where loja_id = p_origem and colecao = 'meta' and id not in ('settings', 'seq') on conflict do nothing;
-
-  -- equipe
-  insert into public.membros(loja_id, user_id, email, nome, papel, notificar_pedidos, ativo)
-    select p_destino, user_id, email, nome, papel, notificar_pedidos, ativo from public.membros where loja_id = p_origem
-  on conflict (loja_id, user_id) do nothing;
-  -- endereço curto, aparência, e-mail e fiscal: ficam os da loja que fica; os da outra só se faltar
-  if (select slug from public.lojas where id = p_destino) is null then
-    select slug into s_orig from (select to_jsonb(slug) as slug from public.lojas where id = p_origem) x;
-    update public.lojas set slug = null where id = p_origem;
-    update public.lojas set slug = s_orig #>> '{}' where id = p_destino;
-  end if;
-  update public.lojas_dominios set loja_id = p_destino where loja_id = p_origem;
-  insert into public.lojas_tema select (jsonb_populate_record(null::public.lojas_tema, to_jsonb(t) || jsonb_build_object('loja_id', p_destino))).* from public.lojas_tema t where t.loja_id = p_origem on conflict do nothing;
-  insert into public.lojas_email select (jsonb_populate_record(null::public.lojas_email, to_jsonb(t) || jsonb_build_object('loja_id', p_destino))).* from public.lojas_email t where t.loja_id = p_origem on conflict do nothing;
-  insert into public.lojas_fiscal select (jsonb_populate_record(null::public.lojas_fiscal, to_jsonb(t) || jsonb_build_object('loja_id', p_destino))).* from public.lojas_fiscal t where t.loja_id = p_origem on conflict do nothing;
-  -- créditos de notas: somam
-  insert into public.creditos(loja_id, saldo) select p_destino, saldo from public.creditos where loja_id = p_origem
-  on conflict (loja_id) do update set saldo = public.creditos.saldo + excluded.saldo;
-  insert into public.consumo_mensal select (jsonb_populate_record(null::public.consumo_mensal, to_jsonb(c) || jsonb_build_object('loja_id', p_destino))).* from public.consumo_mensal c where c.loja_id = p_origem
-  on conflict (loja_id, mes) do nothing;
-  -- históricos: passam para a loja que fica
-  update public.creditos_mov set loja_id = p_destino where loja_id = p_origem;
-  update public.notas_fiscais set loja_id = p_destino where loja_id = p_origem;
-  update public.consumo_notas set loja_id = p_destino where loja_id = p_origem;
-  update public.avisos_loja set loja_id = p_destino where loja_id = p_origem;
-  update public.nfse_eventos set loja_id = p_destino where loja_id = p_origem;
-  update public.kiwify_eventos set loja_id = p_destino where loja_id = p_origem;
-  update public.plataforma_avisos set loja_id = p_destino where loja_id = p_origem;
-
-  delete from public.lojas where id = p_origem;
-  perform set_config('oficina.migrando', '', true);
-  return jsonb_build_object('registros_movidos', movidos, 'numeros_trocados', renumerados);
-end $$;
-
--- junta todas as lojas com este nome e o mesmo dono (confere antes; não junta lojas de donos diferentes)
-create or replace function public.juntar_lojas_por_nome(p_nome text) returns jsonb
-  language plpgsql security definer set search_path = public as $$
-declare destino uuid; donos int; r record; out jsonb := '[]'::jsonb;
-begin
-  select count(distinct m.user_id) into donos from public.lojas l join public.membros m on m.loja_id = l.id and m.papel = 'dono' where l.nome = p_nome;
-  if donos = 0 then raise exception 'nenhuma loja com o nome %', p_nome; end if;
-  if donos > 1 then raise exception 'as lojas "%" têm donos diferentes: não junto automaticamente', p_nome; end if;
-  select l.id into destino from public.lojas l where l.nome = p_nome
-   order by (select count(*) from public.itens i where i.loja_id = l.id) desc, l.criado_em limit 1;
-  for r in select l.id from public.lojas l where l.nome = p_nome and l.id <> destino order by l.criado_em loop
-    out := out || jsonb_build_array(public.juntar_lojas(destino, r.id));
-  end loop;
-  return jsonb_build_object('loja_que_ficou', destino, 'juntadas', out,
-    'registros_agora', (select count(*) from public.itens where loja_id = destino));
-end $$;
-
-revoke all on function public.juntar_lojas(uuid, uuid), public.juntar_lojas_por_nome(text) from public, anon, authenticated;
-
-
--- >>>>>>>>>>>>>>>>>>>> 24_trocar_email.sql >>>>>>>>>>>>>>>>>>>>
+-- >>>>>>>>>>>>>>>>>>>> origem: 24_trocar_email.sql >>>>>>>>>>>>>>>>>>>>
 -- =====================================================================
 -- SaaS · Etapa 24: trocar o e-mail de login sem perder a loja.
 -- A loja fica ligada à conta (user_id), não ao e-mail. Depois que a pessoa confirma o e-mail novo, o app chama
@@ -2928,7 +3195,7 @@ revoke all on function public.sincronizar_meu_email(), public.email_da_compra(uu
 grant execute on function public.sincronizar_meu_email(), public.email_da_compra(uuid) to authenticated;
 
 
--- >>>>>>>>>>>>>>>>>>>> 25_fotos_aparelho.sql >>>>>>>>>>>>>>>>>>>>
+-- >>>>>>>>>>>>>>>>>>>> origem: 25_fotos_aparelho.sql >>>>>>>>>>>>>>>>>>>>
 -- Etapa 25: fotos do aparelho (estado na entrada) na OS e no orçamento.
 -- Bucket PRIVADO "lojas-privado": pasta por loja (<loja_id>/aparelhos/...). Só a equipe da loja lê, grava e apaga;
 -- o sistema mostra as fotos por link temporário (assinado). Nada fica público: são fotos do aparelho do cliente.
@@ -2952,7 +3219,7 @@ exception when undefined_table or invalid_schema_name or undefined_function then
 end $$;
 
 
--- >>>>>>>>>>>>>>>>>>>> 26_cards_bancada.sql >>>>>>>>>>>>>>>>>>>>
+-- >>>>>>>>>>>>>>>>>>>> origem: 26_cards_bancada.sql >>>>>>>>>>>>>>>>>>>>
 -- =====================================================================
 -- SaaS · Etapa 26: cards da bancada criados pela loja (ex.: "Aguardando cliente").
 -- A configuração dos cards fica nas configurações da loja (itens/meta/settings), sem tabela nova.
@@ -2991,7 +3258,7 @@ revoke all on function public.acompanhar_os(text) from public;
 grant execute on function public.acompanhar_os(text) to anon, authenticated;
 
 
--- >>>>>>>>>>>>>>>>>>>> 27_carrinhos_abandonados.sql >>>>>>>>>>>>>>>>>>>>
+-- >>>>>>>>>>>>>>>>>>>> origem: 27_carrinhos_abandonados.sql >>>>>>>>>>>>>>>>>>>>
 -- =====================================================================
 -- SaaS · Etapa 27: carrinhos abandonados no painel admin.
 -- Kiwify ("status": "abandoned") e Hotmart (PURCHASE_OUT_OF_SHOPPING_CART) mandam um aviso quando a pessoa
@@ -3063,6 +3330,12 @@ end $$;
 
 revoke all on function public.admin_carrinhos(text), public.admin_carrinho_marcar(text, text, text) from public, anon;
 grant execute on function public.admin_carrinhos(text), public.admin_carrinho_marcar(text, text, text) to authenticated;
+
+-- >>>>>>>>>>>>>>>>>>>> base: 1 oficina principal por dono >>>>>>>>>>>>>>>>>>>>
+-- Cada conta tem uma oficina principal (a da assinatura). Oficinas extras (multi-oficinas do Pro) entram com principal = false.
+alter table public.membros add column if not exists principal boolean not null default true;
+create unique index if not exists membros_um_dono_principal on public.membros (user_id) where papel = 'dono' and principal;
+delete from public.plataforma_config where chave = 'loja_padrao';
 
 
 -- >>>>>>>>>>>>>>>>>>>> 28_tema_claro.sql >>>>>>>>>>>>>>>>>>>>
@@ -3344,7 +3617,6 @@ create or replace function public.criar_pedido_veiculo(p_loja uuid, p_nome text,
 declare r jsonb; v_placa text := upper(regexp_replace(coalesce(p_placa, ''), '[^A-Za-z0-9]', '', 'g'));
 begin
   r := public.criar_pedido(p_loja, p_nome, p_telefone, p_marca, p_modelo, p_defeito, p_urgencia);
-  if p_loja is null and (select count(*) from public.lojas) = 1 then select id into p_loja from public.lojas; end if;
   update public.itens set dados = dados || jsonb_build_object(
       'tipo', case when p_tipo = 'moto' then 'moto' else 'carro' end, 'placa', left(v_placa, 7),
       'ano', left(regexp_replace(coalesce(p_ano, ''), '\D', '', 'g'), 4))
@@ -3353,3 +3625,93 @@ begin
 end $$;
 revoke all on function public.criar_pedido_veiculo(uuid, text, text, text, text, text, text, text, text, text) from public;
 grant execute on function public.criar_pedido_veiculo(uuid, text, text, text, text, text, text, text, text, text) to anon, authenticated;
+
+
+-- >>>>>>>>>>>>>>>>>>>> 31_unir_oficinas.sql >>>>>>>>>>>>>>>>>>>>
+-- 31 · Admin: unir oficinas duplicadas do mesmo e-mail, sem apagar nem sobrescrever nada.
+-- ADITIVA: colunas novas e funções novas. Seguro rodar de novo. Reverter: 31_unir_oficinas_reverter.sql
+--   - Prevalece a oficina com MAIS cadastros (empate: a mais antiga). Nada dela é substituído:
+--     registro que já existe nela fica como está; da outra só entra o que falta.
+--   - Número repetido (OS nº 1 nas duas): o que veio da outra ganha o próximo número livre.
+--   - Configurações: valem as da que prevalece; só entra o que ela não tinha.
+--   - A outra oficina NÃO é apagada: fica marcada como unida (unida_a/unida_em) e sem equipe (ninguém entra nela).
+
+alter table public.lojas add column if not exists unida_a uuid references public.lojas(id) on delete set null;
+alter table public.lojas add column if not exists unida_em timestamptz;
+
+create or replace function public.unir_oficinas(p_destino uuid, p_origem uuid) returns jsonb
+  language plpgsql security definer set search_path = public as $$
+declare r record; novo int; movidos int := 0; renumerados int := 0; mantidos int := 0; s_dest jsonb; s_orig jsonb;
+begin
+  if p_destino = p_origem then raise exception 'escolha duas oficinas diferentes'; end if;
+  if not exists (select 1 from public.lojas where id = p_destino) or not exists (select 1 from public.lojas where id = p_origem) then raise exception 'oficina não encontrada'; end if;
+  perform set_config('oficina.migrando', '1', true);
+  for r in select * from public.itens where loja_id = p_origem and colecao <> 'meta' order by colecao, id loop
+    if exists (select 1 from public.itens where loja_id = p_destino and colecao = r.colecao and id = r.id) then mantidos := mantidos + 1; continue; end if;
+    if (r.dados ->> 'numero') ~ '^\d+$' and exists (select 1 from public.itens where loja_id = p_destino and colecao = r.colecao and dados ->> 'numero' = r.dados ->> 'numero') then
+      select coalesce(max(public.num_seguro(dados ->> 'numero')), 0)::int + 1 into novo from public.itens where loja_id = p_destino and colecao = r.colecao;
+      r.dados := jsonb_set(r.dados, '{numero}', to_jsonb(novo)); renumerados := renumerados + 1;
+    end if;
+    insert into public.itens(loja_id, colecao, id, dados, atualizado_em) values (p_destino, r.colecao, r.id, r.dados, r.atualizado_em);
+    movidos := movidos + 1;
+  end loop;
+  -- configurações: as da que prevalece ficam; só entra o que ela não tinha
+  select dados into s_dest from public.itens where loja_id = p_destino and colecao = 'meta' and id = 'settings';
+  select dados into s_orig from public.itens where loja_id = p_origem and colecao = 'meta' and id = 'settings';
+  if s_orig is not null then
+    insert into public.itens(loja_id, colecao, id, dados) values (p_destino, 'meta', 'settings', s_orig)
+    on conflict (loja_id, colecao, id) do update set dados = s_orig || public.itens.dados, atualizado_em = now();
+  end if;
+  -- contadores: o maior de cada (para não repetir número)
+  insert into public.itens(loja_id, colecao, id, dados)
+    select p_destino, 'meta', 'seq', o.dados from public.itens o where o.loja_id = p_origem and o.colecao = 'meta' and o.id = 'seq'
+  on conflict (loja_id, colecao, id) do update set dados = (select jsonb_object_agg(k, greatest(coalesce(public.num_seguro(public.itens.dados ->> k), 0), coalesce(public.num_seguro(excluded.dados ->> k), 0)))
+      from (select jsonb_object_keys(public.itens.dados) k union select jsonb_object_keys(excluded.dados)) ks), atualizado_em = now();
+  -- equipe da outra entra (sem tirar ninguém); a outra fica sem equipe e marcada como unida
+  insert into public.membros(loja_id, user_id, email, nome, papel, notificar_pedidos, ativo, principal)
+    select p_destino, user_id, email, nome, case when papel = 'dono' then 'atendente' else papel end, notificar_pedidos, ativo, false from public.membros m
+     where m.loja_id = p_origem and not exists (select 1 from public.membros x where x.loja_id = p_destino and x.user_id = m.user_id)
+  on conflict do nothing;
+  delete from public.membros where loja_id = p_origem;
+  update public.lojas set unida_a = p_destino, unida_em = now() where id = p_origem;
+  perform set_config('oficina.migrando', '', true);
+  return jsonb_build_object('destino', p_destino, 'origem', p_origem, 'registros_movidos', movidos, 'ja_existiam', mantidos, 'numeros_trocados', renumerados);
+end $$;
+revoke all on function public.unir_oficinas(uuid, uuid) from public, anon, authenticated;
+
+-- oficinas do mesmo e-mail de dono (candidatas a unir)
+create or replace function public.admin_duplicadas() returns jsonb
+  language plpgsql security definer set search_path = public as $$
+begin
+  perform public.exigir_admin();
+  return coalesce((select jsonb_agg(g order by g ->> 'email') from (
+    select jsonb_build_object('email', lower(m.email), 'oficinas', jsonb_agg(jsonb_build_object('id', l.id, 'nome', l.nome, 'criado_em', l.criado_em,
+             'cadastros', (select count(*) from public.itens i where i.loja_id = l.id and i.colecao <> 'meta')) order by l.criado_em)) g
+      from public.membros m join public.lojas l on l.id = m.loja_id
+     where m.papel = 'dono' and m.email is not null and l.unida_a is null
+     group by lower(m.email) having count(distinct l.id) > 1) x), '[]'::jsonb);
+end $$;
+revoke all on function public.admin_duplicadas() from public, anon;
+grant execute on function public.admin_duplicadas() to authenticated;
+
+-- unir duas oficinas (o admin escolhe as duas; a com mais cadastros prevalece)
+create or replace function public.admin_unir_lojas(p_a uuid, p_b uuid, p_motivo text) returns jsonb
+  language plpgsql security definer set search_path = public as $$
+declare na int; nb int; ca timestamptz; cb timestamptz; destino uuid; origem uuid; r jsonb;
+begin
+  perform public.exigir_admin();
+  if coalesce(trim(p_motivo), '') = '' then raise exception 'informe o motivo'; end if;
+  if not exists (select 1 from public.membros a join public.membros b on lower(a.email) = lower(b.email)
+                  where a.loja_id = p_a and b.loja_id = p_b and a.papel = 'dono' and b.papel = 'dono') then
+    raise exception 'as duas oficinas precisam ter o mesmo e-mail de dono';
+  end if;
+  select count(*) into na from public.itens where loja_id = p_a and colecao <> 'meta';
+  select count(*) into nb from public.itens where loja_id = p_b and colecao <> 'meta';
+  select criado_em into ca from public.lojas where id = p_a; select criado_em into cb from public.lojas where id = p_b;
+  if na > nb or (na = nb and ca <= cb) then destino := p_a; origem := p_b; else destino := p_b; origem := p_a; end if;
+  r := public.unir_oficinas(destino, origem);
+  perform public.auditar('unir_oficinas', destino, jsonb_build_object('origem', origem, 'cadastros', jsonb_build_object(p_a::text, na, p_b::text, nb)), r, p_motivo);
+  return r;
+end $$;
+revoke all on function public.admin_unir_lojas(uuid, uuid, text) from public, anon;
+grant execute on function public.admin_unir_lojas(uuid, uuid, text) to authenticated;

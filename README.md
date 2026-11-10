@@ -14,8 +14,8 @@ Feito a partir do código do Reparo Simples, mas é um **produto separado**: tem
 | `acompanhar.html`, `pedido.html`, `vitrine.html` | Páginas públicas: link do cliente, pedido de orçamento e vitrine |
 | `admin.html`, `js/admin.js`, `api/admin.js` | Painel do dono da plataforma |
 | `api/` | Funções do servidor na Vercel (webhooks de pagamento, convite da equipe) |
-| `supabase/schema.sql` + `supabase/saas/NN_*.sql` | Banco: base e migrações (cada uma com o seu `_reverter.sql`) |
-| `supabase/saas/TUDO.sql` | Todas as migrações juntas (gerado por `npm run migracoes`, roda duas vezes sem erro) |
+| `supabase/saas/00_base.sql` + `supabase/saas/NN_*.sql` | Banco: base única e migrações novas (cada uma com o seu `_reverter.sql`). `supabase/legado/` é só histórico |
+| `supabase/saas/TUDO.sql` | O banco inteiro (base + migrações), gerado por `npm run migracoes`; roda duas vezes sem erro |
 | `scripts/` | Build (`dist/`), geração do `js/config.js` na publicação e junção das migrações |
 | `tests/` | Testes automáticos (ver abaixo) |
 
@@ -34,7 +34,7 @@ npm run teste
 O que acontece:
 
 1. Um Postgres local é ligado (porta 54329, pasta `.pgtest/`).
-2. O banco é montado do zero: simulação do Supabase, `schema.sql` e `TUDO.sql` **duas vezes**.
+2. O banco é montado do zero: simulação do Supabase e `TUDO.sql` **duas vezes**.
 3. Um "Supabase de mentira" (`tests/servidor/supabase-falso.cjs`) cuida do login, dos dados, das fotos e do tempo real. Ele usa o Postgres de verdade, com as mesmas regras de segurança (RLS) do banco real.
 4. O Playwright abre o app no **celular (390×844)** e no **computador** e testa de ponta a ponta. Os testes falham com qualquer erro no console e com rolagem lateral.
 

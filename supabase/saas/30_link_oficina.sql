@@ -102,7 +102,6 @@ create or replace function public.criar_pedido_veiculo(p_loja uuid, p_nome text,
 declare r jsonb; v_placa text := upper(regexp_replace(coalesce(p_placa, ''), '[^A-Za-z0-9]', '', 'g'));
 begin
   r := public.criar_pedido(p_loja, p_nome, p_telefone, p_marca, p_modelo, p_defeito, p_urgencia);
-  if p_loja is null and (select count(*) from public.lojas) = 1 then select id into p_loja from public.lojas; end if;
   update public.itens set dados = dados || jsonb_build_object(
       'tipo', case when p_tipo = 'moto' then 'moto' else 'carro' end, 'placa', left(v_placa, 7),
       'ano', left(regexp_replace(coalesce(p_ano, ''), '\D', '', 'g'), 4))

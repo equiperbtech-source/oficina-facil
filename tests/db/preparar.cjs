@@ -1,4 +1,4 @@
-/* Monta do zero o banco dos testes: simulação do Supabase → schema.sql → TUDO.sql (DUAS vezes, para provar
+/* Monta do zero o banco dos testes: simulação do Supabase → TUDO.sql (00_base + migrações) (DUAS vezes, para provar
    que roda repetido sem erro) → avisos do tempo real. Uso: node tests/db/preparar.cjs [nome_do_banco] */
 const { execFileSync } = require('child_process');
 const path = require('path');
@@ -13,7 +13,6 @@ function preparar(banco = BANCO) {
   psql(['-c', `drop database if exists ${banco} with (force)`]);
   psql(['-c', `create database ${banco}`]);
   arquivo('tests/db/supabase-falso.sql', banco);
-  arquivo('supabase/schema.sql', banco);
   arquivo('supabase/saas/TUDO.sql', banco);
   arquivo('supabase/saas/TUDO.sql', banco); // segunda vez: tem que rodar sem erro
   arquivo('tests/db/depois.sql', banco);

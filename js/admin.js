@@ -62,7 +62,7 @@ const Admin = {
   async sair() { await this.sb.auth.signOut(); document.cookie = 'os_admin=; Path=/; Max-Age=0'; location.href = '/admin-entrar.html'; },
 
   render() {
-    const abas = [['painel', 'Painel'], ['lojas', 'Oficinas'], ['eventos', 'Pagamentos'], ['fila', 'Compras sem oficina'], ['carrinhos', 'Carrinhos abandonados'], ['produtos', 'Produtos e planos'], ['avisos', 'Avisos'], ['comunicados', 'Comunicados'], ['auditoria', 'Auditoria']];
+    const abas = [['painel', 'Painel'], ['lojas', 'Oficinas'], ['teste', 'Em teste'], ['bloqueadas', 'Bloqueadas e expiradas'], ['duplicadas', 'Duplicadas'], ['eventos', 'Pagamentos'], ['fila', 'Compras sem oficina'], ['carrinhos', 'Carrinhos abandonados'], ['produtos', 'Produtos e planos'], ['avisos', 'Avisos'], ['comunicados', 'Comunicados'], ['auditoria', 'Auditoria']];
     $('#adm').innerHTML = `<div class="adm-top"><img src="/assets/os-192.png" alt="" style="width:40px;height:40px;border-radius:10px"><h1 style="margin:0;font-size:22px">Oficina Simples <span class="gold">admin</span></h1><div class="spacer" style="flex:1"></div>
         <a class="btn sm" href="/">Abrir o app</a><button class="btn sm" onclick="Admin.sair()">${icon('logout', 'sm')} Sair</button></div>
       <div class="adm-tabs tabs">${abas.map(([k, l]) => `<button data-a="${k}" class="${this.aba === k ? 'on' : ''}">${l}</button>`).join('')}</div>
@@ -177,10 +177,40 @@ const Admin = {
     const sel = $('#ev-s'); if (sel) sel.onchange = e => { this.ev.status = e.target.value; this.ev.pag = 0; this.eventos(); };
     $$('[data-rp]').forEach(b => b.onclick = async () => { try { const s = await this.api('reprocessar', { p_evento: +b.dataset.rp }); toast('Resultado: ' + s); this.recarregar(); } catch {} });
     $$('[data-pl]').forEach(b => b.onclick = () => { const e = r.eventos.find(x => x.id === +b.dataset.pl); openModal({ title: 'Evento #' + e.id, icon: 'file', wide: true, body: `<pre class="json">${esc(JSON.stringify(e.payload, null, 2))}</pre>` }); });
-    $$('[data-vc]').forEach(b => b.onclick = async () => {
-      const lj = prompt('ID da oficina (copie da lista de lojas, no detalhe da oficina):'); if (!lj) return;
-      const motivo = prompt('Motivo (fica na auditoria):'); if (!motivo) return;
-      try { const s = await this.api('vincular', { p_evento: +b.dataset.vc, p_loja: lj.trim(), p_motivo: motivo }); toast('Resultado: ' + s); this.recarregar(); } catch {}
+    $$('[data-vc]').forEach(b => b.onclick = () => this.vincular(+b.dataset.vc, r.eventos.find(x => x.id === +b.dataset.vc)));
+  },
+  // vincular a compra a uma oficina: busca por nome, e-mail ou endereço
+  vincular(id, ev) {
+    const m = openModal({
+      title: 'Vincular compra a uma oficina', icon: 'link', subtitle: ev?.email || '',
+      body: `<input class="input" id="vc-q" placeholder="Buscar oficina por nome, e-mail ou endereço" value="${esc((ev?.email || '').split('@')[0])}"><div id="vc-res" class="mt"></div>
+        <div class="field mt"><label>Motivo (fica na auditoria)</label><input class="input" id="vc-mot" placeholder="Ex: comprou com outro e-mail"></div>`,
+      foot: '<button class="btn" data-close>Cancelar</button>',
+    });
+    let escolhida = null;
+    const buscar = async () => {
+      const r = await this.api('lojas', { p_busca: $('#vc-q', m.el).value.trim(), p_plano: '', p_situacao: '', p_ordem: 'criado', p_limite: 8, p_offset: 0 });
+      $('#vc-res', m.el).innerHTML = r.lojas.map(l => `<div class="cart-line" style="padding:8px 0"><div class="grow" style="min-width:0"><b>${esc(l.nome)}</b><div class="xs muted">${esc(l.dono_email || '')} · ${esc(l.situacao || '')}</div></div><button class="btn sm outline-gold" data-esc="${l.id}">Vincular</button></div>`).join('') || '<p class="small muted">Nenhuma oficina.</p>';
+      $$('[data-esc]', m.el).forEach(b => b.onclick = async () => {
+        const motivo = $('#vc-mot', m.el).value.trim(); if (!motivo) return toast('Informe o motivo', true);
+        escolhida = b.dataset.esc;
+        try { const s = await this.api('vincular', { p_evento: id, p_loja: escolhida, p_motivo: motivo }); toast('Resultado: ' + s); m.close(); this.recarregar(); } catch {}
+      });
+    };
+    let tm; $('#vc-q', m.el).oninput = () => { clearTimeout(tm); tm = setTimeout(buscar, 300); }; buscar();
+  },
+  // atalhos da lista de oficinas
+  async teste() { this.f = { ...this.f, situacao: 'teste', pag: 0 }; return this.lojas(); },
+  async bloqueadas() { this.f = { ...this.f, situacao: this.f.situacao === 'expirada' ? 'expirada' : 'bloqueada', pag: 0, bloqueadas: true }; return this.lojas(); },
+  // oficinas duplicadas do mesmo e-mail: unir (a com mais cadastros prevalece; nada dela é substituído; a outra não é apagada)
+  async duplicadas() {
+    const r = await this.api('duplicadas');
+    $('#adm-c').innerHTML = `<p class="small muted" style="margin-top:0">Oficinas do mesmo e-mail de dono. Ao unir, a que tem mais cadastros prevalece e nada dela é substituído; da outra só entra o que falta, e ela fica marcada como unida (não é apagada).</p>
+      ${r.map((g, i) => `<div class="card mb"><b>${esc(g.email)}</b>${g.oficinas.map(o => `<div class="kv"><span class="k">${esc(o.nome)} <span class="xs muted">· desde ${fmtDate(o.criado_em)}</span></span><span class="v">${o.cadastros} cadastros</span></div>`).join('')}
+        ${g.oficinas.length === 2 ? `<button class="btn primary mt" data-unir="${i}">Unir as duas</button>` : '<p class="xs muted">Mais de duas: una de duas em duas pelo detalhe.</p>'}</div>`).join('') || '<div class="card empty">Nenhuma oficina duplicada.</div>'}`;
+    $$('[data-unir]').forEach(b => b.onclick = async () => {
+      const g = r[+b.dataset.unir]; const motivo = prompt('Motivo (fica na auditoria):'); if (!motivo) return;
+      try { const x = await this.api('unir', { p_a: g.oficinas[0].id, p_b: g.oficinas[1].id, p_motivo: motivo }); toast(`Unidas: ${x.registros_movidos} cadastros trazidos, ${x.ja_existiam} já existiam`); this.recarregar(); } catch {}
     });
   },
   async fila() { this.ev.pag = 0; return this.eventos('pendente_loja'); },

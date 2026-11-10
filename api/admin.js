@@ -34,6 +34,8 @@ const ACOES = {
   resultado_email: ['resultado_email', ['p_id']],
   comunicado_ativo: ['admin_comunicado_ativo', ['p_id', 'p_ativo']],
   carrinhos: ['admin_carrinhos', ['p_filtro']],
+  duplicadas: ['admin_duplicadas', []],
+  unir: ['admin_unir_lojas', ['p_a', 'p_b', 'p_motivo']],
   carrinho_marcar: ['admin_carrinho_marcar', ['p_email', 'p_situacao', 'p_canal']],
 };
 

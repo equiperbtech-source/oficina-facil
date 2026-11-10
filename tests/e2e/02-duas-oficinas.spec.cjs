@@ -36,6 +36,9 @@ test('oficina B não enxerga a oficina A', async ({ browser }, info) => {
   await expect(pb.locator('body')).not.toContainText('Oficina Alfa');
   expect(errosB).toEqual([]);
 
+  // A também tem OS (com veículo), fornecedores e notas
+  for (const col of ['os', 'fornecedores', 'nfe_entradas', 'orcamentos']) await api('/rest/v1/itens', { token: tokA, method: 'POST', body: [{ loja_id: lojaA.id, colecao: col, id: 'x-' + col, dados: { veiculo: { placa: 'ABC1D23' }, nome: 'Forn A' } }] });
+  expect((await api(`/rest/v1/itens?select=colecao&loja_id=eq.${lojaA.id}&colecao=in.(os,fornecedores,orcamentos)`, { token: tokA })).dados.length).toBe(3);
   // --- B tenta pelo servidor, com o login dele ---
   const tokB = await login(B.email);
   const lojaB = (await api('/rest/v1/lojas?select=id', { token: tokB })).dados;
