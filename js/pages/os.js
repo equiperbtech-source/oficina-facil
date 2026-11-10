@@ -128,23 +128,27 @@ const OSPage = {
   },
   msgEntrada(o, c) {
     const x = this.vars(o, c);
+    const pers = PersonalizarOficina.mensagem('entrada', { ...x, etapa: t(OS_STATUS[o.status]?.label || '') }); if (pers) return pers;
     return `${t('Olá {cliente}! Recebemos seu {tipo} *{veiculo}*{placaTxt} na {oficina}.', { ...x, placaTxt: x.placa ? ` ${t('placa')} *${x.placa}*` : '' })} 🔧\n\nOS: *#${o.numero}*\n${t('Reclamação')}: ${o.defeito}${Store.osTotal(o) ? `\n${t('Valor')}: ${money(Store.osTotal(o))}` : ''}${o.previsao && Store.s.usarPrevisao !== false ? `\n${t('Previsão')}: ${fmtDate(o.previsao)}` : ''}${this.trechoLink(o)}`;
   },
   // resumo curto da garantia para o WhatsApp (a oficina liga ou desliga)
   resumoGarantia(o) { return `${t('Garantia')}: *${textoGarantia(o)}*`; },
   msgPronto(o, c) {
     const x = this.vars(o, c);
+    const pers = PersonalizarOficina.mensagem('pronto', { ...x, etapa: t(OS_STATUS[o.status]?.label || '') }); if (pers) return pers;
     const pronto = t('Seu {tipo} *{veiculo}*{placaTxt} está *pronto para retirada*!', { ...x, placaTxt: x.placa ? ` ${t('placa')} *${x.placa}*` : '' });
     if (Store.s.whatsResumoGarantia === false) return `${t('Olá {cliente}! Aqui é da {oficina}.', x)}\n\n${pronto}\n\n${t('Aguardamos você!')}`;
     return `${t('Olá {cliente}! Aqui é da {oficina}.', x)} ✅\n\n${pronto}\n\n${t('Valor')}: *${money(Store.osTotal(o))}*\n${this.resumoGarantia(o)}${this.link(o) ? `\n\n📄 ${t('Acompanhe e baixe sua garantia em PDF:')}\n${this.link(o)}` : ''}\n\n${t('Aguardamos você!')}`;
   },
   msgStatus(o, c) {
     const x = this.vars(o, c);
+    const pers = PersonalizarOficina.mensagem('status', { ...x, etapa: t(OS_STATUS[o.status]?.label || '') }); if (pers) return pers;
     return `${t('Olá {cliente}! Aqui é da {oficina}.', x)}\n\n${t('Atualização da OS #{n} ({veiculo}):', x)}\n${t('Etapa')}: *${t(OS_STATUS[o.status].label)}*${o.previsao && Store.s.usarPrevisao !== false && !['concluido', 'pago'].includes(o.status) ? `\n${t('Previsão')}: ${fmtDate(o.previsao)}` : ''}\n${t('Valor')}: ${money(Store.osTotal(o))}${this.trechoLink(o)}`;
   },
   // ao concluir (pago): agradece por escolher a oficina
   msgObrigado(o, c) {
     const x = this.vars(o, c);
+    const pers = PersonalizarOficina.mensagem('obrigado', { ...x, etapa: t(OS_STATUS[o.status]?.label || '') }); if (pers) return pers;
     return `${t('Olá {cliente}! Obrigado por escolher a {oficina}.', x)} 🙏\n\n${t('Seu serviço (OS #{n}) tem *garantia de {prazo}*, válida até {data}.', { n: o.numero, prazo: textoGarantia(o), data: fmtDate(Store.garantiaFim(o)) })}${this.link(o) ? `\n\n📄 ${t('Baixe sua garantia em PDF:')}\n${this.link(o)}` : ''}\n\n${t('Qualquer coisa, estamos à disposição!')}`;
   },
   async copiarLink(id) {

@@ -9,8 +9,8 @@ const Aparencia = {
       <h3>${icon('star', 'sm')} Aparência <span class="gold">da oficina</span></h3>
       <p class="small muted" style="margin-top:0">Logo, cores e dados que aparecem no app, nos PDFs e nas páginas dos clientes. Mexa e veja na hora; só vale depois de salvar.</p>
       <div class="row" style="gap:12px;align-items:center" id="tm-logo-box"></div>
-      <div class="grid grid-3 mt" style="gap:10px">
-        ${[['cor_primaria', 'Cor principal'], ['cor_secundaria', 'Cor secundária'], ['cor_fundo', 'Fundo']].map(([k, l]) => `<div class="field"><label>${l}</label><input type="color" class="input" name="${k}" value="${esc(t[k])}" style="padding:4px;min-height:44px"></div>`).join('')}
+      <div class="grid grid-2 mt" style="gap:10px">
+        ${[['cor_primaria', 'Cor principal'], ['cor_secundaria', 'Cor ao tocar']].map(([k, l]) => `<div class="field"><label>${l}</label><input type="color" class="input" name="${k}" value="${esc(t[k])}" style="padding:4px;min-height:44px"></div>`).join('')}
       </div>
       <div id="tm-contraste" class="small mb"></div>
       ${field('Fonte', `<select class="input" name="fonte">${FONTES.map(f => `<option ${t.fonte === f ? 'selected' : ''}>${f}</option>`).join('')}</select>`)}
@@ -26,7 +26,7 @@ const Aparencia = {
     </div>`;
   },
 
-  form() { const el = $('#cf-tema'); const o = {}; $$('[name]', el).forEach(i => o[i.name] = i.value.trim()); o.logo_url = this.logo ?? Cloud.loja.tema.logo_url; o.favicon_url = this.favicon ?? Cloud.loja.tema.favicon_url; return o; },
+  form() { const el = $('#cf-tema'); const o = {}; $$('[name]', el).forEach(i => o[i.name] = i.value.trim()); o.logo_url = this.logo ?? Cloud.loja.tema.logo_url; o.favicon_url = this.favicon ?? Cloud.loja.tema.favicon_url; o.cor_fundo = '#FFFFFF'; return o; },
 
   ligar() {
     const el = $('#cf-tema'); if (!el) return;
@@ -134,6 +134,66 @@ const Aparencia = {
       const { error } = await Cloud.sb.from('lojas_dominios').upsert([{ dominio: d, loja_id: Cloud.loja.id, verificado: false }]);
       if (error) return toast(/duplicate|unique/i.test(error.message) ? 'Este domínio já está em uso' : error.message, true);
       toast('Domínio adicionado: aguardando verificação'); this.dominio();
+    };
+  },
+};
+
+/* Configurações → Oficina: liga/desliga, listas e textos editáveis (com prévia).
+   Só o que a oficina muda é guardado (o resto vem dos padrões na leitura); junta campo a campo entre dispositivos. */
+const MSG_PADRAO = {
+  entrada: 'Olá {cliente}! Recebemos seu {veiculo} placa {placa} na {oficina}. Acompanhe: {link}',
+  pronto: 'Olá {cliente}! Seu {veiculo} placa {placa} está pronto para retirada. Total: {total}. {link}',
+  status: 'Olá {cliente}! Atualização do seu {veiculo} placa {placa}: {etapa}. {link}',
+  obrigado: 'Olá {cliente}! Obrigado por escolher a {oficina}. {link}',
+};
+const PersonalizarOficina = {
+  LIGA: [['usarPrevisao', 'Previsão de entrega na OS e no link'], ['whatsResumoGarantia', 'Resumo da garantia na mensagem de "pronto"'], ['aprovacaoLink', 'Cliente pode aprovar o orçamento pelo link'],
+    ['mecanicoVePreco', 'Mecânico vê o preço de venda das peças']],
+  liga(k) { const v = Store.s[k]; return k === 'mecanicoVePreco' ? v === true : v !== false; },
+  // mensagem personalizada (vazia = a padrão do sistema, mais completa)
+  mensagem(tipo, vars) {
+    const tpl = String((Store.s.msgs || {})[tipo] || '').trim(); if (!tpl) return null;
+    return tpl.replace(/\{(\w+)\}/g, (m, k) => vars[k] ?? m).replace(/[ \t]+\n/g, '\n').trim();
+  },
+  cardHTML() {
+    const s = Store.s, ck = s.checklist || {}, msgs = s.msgs || {};
+    return `<div class="card mb" id="cf-oficina"><h3>${icon('layers', 'sm')} Oficina: <span class="gold">listas e textos</span></h3>
+      <div class="lbl mb">${t('Liga / desliga')}</div>
+      ${this.LIGA.map(([k, l]) => `<label class="check" style="padding:6px 0"><input type="checkbox" data-liga="${k}" ${this.liga(k) ? 'checked' : ''}> ${t(l)}</label>`).join('')}
+      <div class="lbl mt mb">${t('Checklist de entrada')} <span class="xs muted">${t('(um item por linha; vazio = lista padrão)')}</span></div>
+      <div class="form-row">${Veiculo.tipos().map(k => field(TIPOS_VEICULO[k].label, `<textarea class="input" data-ck-tipo="${k}" style="min-height:160px" placeholder="${esc(CHECKLIST_PADRAO[k].join('\n'))}">${esc((ck[k] || []).join('\n'))}</textarea>`)).join('')}</div>
+      <p class="xs muted" style="margin-top:-6px">${t('As OS já abertas guardam a lista da entrada: mudar aqui não altera OS antigas.')}</p>
+      ${field('Categorias de peças (uma por linha)', `<textarea class="input" data-cats style="min-height:100px" placeholder="${esc(CATEGORIAS_PECAS.join('\n'))}">${esc((s.categoriasPecas || []).join('\n'))}</textarea>`, { opt: true })}
+      <div class="lbl mt mb">${t('Mensagens de WhatsApp')} <span class="xs muted">${t('(vazio = mensagem padrão)')}</span></div>
+      <p class="xs muted" style="margin-top:0">${t('Variáveis')}: {cliente} {veiculo} {placa} {oficina} {link} {total} {etapa}</p>
+      ${[['entrada', 'Entrada do veículo'], ['status', 'Mudança de etapa'], ['pronto', 'Pronto para retirada'], ['obrigado', 'Pagamento (agradecimento)']].map(([k, l]) => field(l, `<textarea class="input" data-msg="${k}" placeholder="${esc(MSG_PADRAO[k])}">${esc(msgs[k] || '')}</textarea>`, { opt: true })).join('')}
+      <div class="lbl mb">${t('Prévia')}</div><div class="card" id="cf-of-prev" style="white-space:pre-wrap;background:#ECFDF5;border-color:#A7F3D0;color:#0F172A;font-size:14px"></div>
+      <div class="grid grid-2 mt"><button class="btn" id="cf-of-pdf">${icon('file')} ${t('Prévia do PDF')}</button><button class="btn primary" id="cf-of-ok">${icon('check')} ${t('Salvar')}</button></div></div>`;
+  },
+  exemplo() {
+    return { numero: 123, clienteId: null, status: 'concluido', criadoEm: nowISO(), veiculo: { tipo: Veiculo.tipoPadrao(), placa: 'ABC1D23', marca: 'Chevrolet', modelo: 'Onix', motor: '1.0', anoModelo: '2019', cor: 'Prata' },
+      defeito: t('Barulho ao frear'), kmEntrada: 45000, nivelCombustivel: '1/2', checklist: {}, checklistItens: Checklist.itens(Veiculo.tipoPadrao()),
+      itensServico: [{ id: 's', nome: t('Troca de pastilhas'), qtd: 1, valor: 120 }], itensPeca: [{ id: 'p', nome: t('Pastilha dianteira'), qtd: 1, valor: 180 }], desconto: 0, garantiaDias: 90, garantiaKm: 5000 };
+  },
+  ligar() {
+    const el = $('#cf-oficina'); if (!el) return;
+    const prev = () => {
+      const msgs = {}; $$('[data-msg]', el).forEach(x => { if (x.value.trim()) msgs[x.dataset.msg] = x.value; });
+      const antes = Store.s.msgs; Store.s.msgs = msgs;
+      $('#cf-of-prev', el).textContent = OSPage.msgPronto(this.exemplo(), { nome: 'Maria Souza' });
+      Store.s.msgs = antes;
+    };
+    $$('[data-msg]', el).forEach(x => x.oninput = prev); prev();
+    $('#cf-of-pdf', el).onclick = async () => { const doc = await Pdf.ordem(this.exemplo()); Pdf.abrirParaImprimir(doc, 'previa-os.pdf'); };
+    $('#cf-of-ok', el).onclick = () => {
+      const s = Store.s;
+      $$('[data-liga]', el).forEach(c => { s[c.dataset.liga] = c.checked; });
+      const ck = { ...(s.checklist || {}) };
+      $$('[data-ck-tipo]', el).forEach(x => { const l = x.value.split('\n').map(v => v.trim()).filter(Boolean); if (l.length) ck[x.dataset.ckTipo] = l; else delete ck[x.dataset.ckTipo]; });
+      s.checklist = ck;
+      const cats = $('[data-cats]', el).value.split('\n').map(v => v.trim()).filter(Boolean); if (cats.length) s.categoriasPecas = cats; else delete s.categoriasPecas;
+      const msgs = {}; $$('[data-msg]', el).forEach(x => { if (x.value.trim()) msgs[x.dataset.msg] = x.value.trim(); }); s.msgs = msgs;
+      Store.save(); toast(t('Configurações da oficina salvas'));
     };
   },
 };

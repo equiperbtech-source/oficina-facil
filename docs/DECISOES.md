@@ -8,3 +8,6 @@
 | 2026-11-10 | "Sem juros até Nx" muda o total? | **Não.** A tabela só define a taxa da maquininha de cada parcela (lucro real); o total cobrado é o mesmo | Mais simples e não muda o preço combinado com o cliente |
 | 2026-11-10 | Peças e produtos num cadastro só | Peças ficam em "Peças e estoque" com a opção **vende no balcão**; o balcão vende essas peças e os produtos antigos da vitrine | A vitrine ainda lê os produtos; juntar no banco fica para a Etapa 8 |
 | 2026-11-10 | Garantia da OS × garantia de cada serviço | A OS tem uma garantia (dias e km) que acompanha o maior prazo dos serviços do catálogo lançados; dá para mudar à mão | O PDF e o link mostram uma garantia só, como no original |
+| 2026-11-10 | Fotos de "peça velha" no link do cliente | **Ficou para os ajustes finos** (o link hoje não mostra nenhuma foto) | Mais seguro: o link é público. As fotos com etiqueta "Peça velha" já ficam marcadas na OS |
+| 2026-11-10 | Formas de pagamento editáveis | Ficaram fixas (Dinheiro, PIX, Débito, Crédito, Transferência, Outro) | As seis cobrem as oficinas; editar mexeria no financeiro e nos relatórios |
+| 2026-11-10 | Cor de fundo na Aparência | Tirada da tela: o fundo é sempre branco | Regra do documento (seção 9) |

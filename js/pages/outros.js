@@ -395,6 +395,8 @@ ${dono ? `      <div class="card mb" id="cf-loja">
 
       ${Aparencia.cardHTML()}
 
+      ${PersonalizarOficina.cardHTML()}
+
       ${Parcelas.cardHTML()}
 
       <div class="card mb" id="cf-modulos">
@@ -528,6 +530,7 @@ ${dono ? `      <div class="card mb" id="cf-loja">
     if (!dono) return;
 
     Aparencia.ligar();
+    PersonalizarOficina.ligar();
     $$('[data-mod]').forEach(c => c.onchange = () => {
       s.modulos = { ...(s.modulos || {}), [c.dataset.mod]: c.checked };
       Store.save(); $('.shell')?.remove(); App.render(); toast(c.checked ? 'Módulo ligado' : 'Módulo desligado');
