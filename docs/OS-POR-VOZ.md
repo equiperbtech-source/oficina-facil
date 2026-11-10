@@ -15,7 +15,7 @@ Erros: microfone bloqueado (explica como liberar no Android e no iPhone); falha 
 | Variável | Valor |
 |---|---|
 | `GEMINI_API_KEY` | chave do Google AI Studio (aistudio.google.com → Get API key) |
-| `GEMINI_MODEL` | opcional. Vazio = `gemini-flash-latest` (o Gemini Flash mais recente). Para fixar um modelo, ex.: `gemini-2.5-flash` |
+| `GEMINI_MODEL` | `gemini-flash-latest` (o Gemini Flash mais recente, com plano gratuito). É também o padrão quando a variável fica vazia |
 
 No banco: rode a migração `supabase/saas/32_os_por_voz.sql` (ou o `TUDO.sql` de novo, que já inclui).
 
