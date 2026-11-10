@@ -320,11 +320,13 @@ const OSPage = {
     const passoBusca = () => {
       body().innerHTML = stepper() + `<h3 style="margin:0 0 4px">${t('Placa ou')} <span class="gold">${t('cliente')}</span></h3>
         <p class="muted small" style="margin:0 0 14px">${t('Digite a placa, o nome, o telefone ou o CPF.')}</p>
+        ${VozOS.botaoHTML()}
         ${inputIcon('search', `id="wz-q" autocomplete="off" autocapitalize="characters" placeholder="${t('Ex: ABC1D23 ou Maria')}" value="${esc(w.q)}"`)}
         <div id="wz-res" class="mt"></div>
         <button class="btn outline-gold block mt" id="wz-new">${icon('userPlus')} ${t('Novo cliente')}</button>`;
       foot().innerHTML = `<button class="btn grow" id="wz-cancel">${t('Cancelar')}</button>`;
       $('#wz-cancel', el).onclick = () => m.close();
+      $('#voz-gravar', el).onclick = () => { m.close(); VozOS.iniciar(); };
       $('#wz-new', el).onclick = () => {
         const placa = Placa.valida(w.q) ? Placa.norm(w.q) : '';
         ClientesPage.editar(null, { aoSalvar: c => { w.clienteId = c.id; const v = (c.veiculos || [])[0]; if (v) { w.veiculo = { ...v }; irPara(3); } else irPara(2); } });

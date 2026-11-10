@@ -1,6 +1,9 @@
 {
   "buildCommand": "node scripts/build.cjs",
   "outputDirectory": "dist",
+  "functions": {
+    "api/os/voz.js": { "maxDuration": 60 }
+  },
   "headers": [
     {
       "source": "/versao.json",
