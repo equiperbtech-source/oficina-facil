@@ -121,3 +121,25 @@ Ficam na landing (Etapa 9), por configuração, vazios por padrão.
 2. Rode o `insert` do super admin (passo 1.4) e abra `/admin`.
 3. Crie um cliente com uma placa, abra uma OS pelos 4 passos, copie o link do cliente e abra no celular.
 4. Gere o PDF da OS e o termo de garantia.
+
+## Parte 3 — Roteiro de teste manual (15 minutos, no celular)
+
+Faça depois de publicar, com o celular na mão.
+
+| # | Faça | Tem que acontecer |
+|---|---|---|
+| 1 | Abra `app.seudominio.com.br` | Tela de entrada branca e azul, "Oficina Simples" |
+| 2 | Criar conta → nome da oficina → "Os dois" | Painel abre; menu com Pátio, Mecânico, OS, Clientes... |
+| 3 | Clientes → Novo cliente com placa `ABC-1D23` (carro) e outra `MOT1A23` (moto) | Carro mostra motor/câmbio; moto mostra cilindrada/partida/freio |
+| 4 | Novo cliente com a placa `ABC1D23` de novo | Aviso "Placa já cadastrada em …" |
+| 5 | OS → Nova OS → digite `abc1d23` | Acha o veículo; entrada com km, combustível e checklist de carro |
+| 6 | Passo 4: um serviço do catálogo (ponha o valor), uma peça avulsa, desconto R$ 10 | Total = mão de obra + peças − 10 |
+| 7 | Marque "Aguardar aprovação do cliente" e abra a OS | Etapa "Aguardando aprovação" |
+| 8 | Copie o link de acompanhamento e abra numa aba anônima | Placa `ABC•••3`, só o primeiro nome, itens e total; botão "Aprovar orçamento" |
+| 9 | Aprove no link | Em segundos a OS vai para "Em serviço" no app |
+| 10 | Mecânico → Fotos (tire 3) e + Peça | Fotos aparecem na OS; peça entra nos itens |
+| 11 | Pátio | Barra de rolagem em cima, setas, card "Pago" no fim |
+| 12 | Mova para "Pronto para retirada" → WhatsApp | Mensagem "Seu carro … placa … está pronto para retirada" + garantia |
+| 13 | Receber → Crédito 3x | Recebido; termo de garantia em PDF abre (1 página) |
+| 14 | No link do cliente: `…/acompanhar/TOKEN?pdf=garantia` | Baixa o termo de garantia |
+| 15 | Configurações → Oficina: listas e textos → desligue "Previsão de entrega" | A previsão some da OS e do link |
