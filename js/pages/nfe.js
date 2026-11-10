@@ -72,10 +72,14 @@ const NFe = {
   previa(n) {
     const dup = this.jaImportada(n.chave);
     if (dup) return toast(`Esta nota já foi importada em ${fmtDate(dup.importadoEm)}.`, true);
+    // onde cada item fica: 'peca' (peça da oficina) ou 'balcao' (também vende no balcão / frente de loja)
+    let modo = Store.s.nfeDestino === 'balcao' ? 'balcao' : 'peca';
     const linhas = n.itens.map(it => {
-      const sug = this.sugestoes(it);
-      return { ...it, incluir: true, destino: sug[0]?.sc >= 60 ? `${sug[0].tipo}:${sug[0].p.id}` : 'novo:produto', sug, preco: 0 };
+      const sug = this.sugestoes(it), achou = sug[0]?.sc >= 60 ? sug[0] : null;
+      const onde = achou ? (achou.tipo === 'produto' || achou.p.balcao ? 'balcao' : modo) : modo;
+      return { ...it, incluir: true, destino: achou ? `${achou.tipo}:${achou.p.id}` : 'novo', onde, sug, preco: 0 };
     });
+    const modoAtual = () => { const os = new Set(linhas.filter(l => l.incluir).map(l => l.onde)); return os.size === 1 ? [...os][0] : os.size ? 'misto' : modo; };
     const m = openModal({
       title: `NF-e ${n.numero ? 'nº ' + esc(n.numero) : ''}`, icon: 'upload', wide: true,
       subtitle: `${esc(n.fornecedor.nome || 'Fornecedor')} · ${n.data ? fmtDate(n.data) : ''} · ${money(n.total)}`,
@@ -83,30 +87,54 @@ const NFe = {
           <div class="kv"><span class="k">Fornecedor</span><span class="v">${esc(n.fornecedor.razao || n.fornecedor.nome)}${n.fornecedor.cnpj ? ` · ${esc(n.fornecedor.cnpj)}` : ''}</span></div>
           <div class="kv"><span class="k">Chave</span><span class="v xs" style="font-family:ui-monospace,monospace;word-break:break-all">${esc(n.chave)}</span></div>
           <div class="kv"><span class="k">Itens</span><span class="v">${n.itens.length} · total ${money(n.total)}</span></div></div>
+        <div class="card mb nf-destino"><b>${t('Para onde vão os itens desta nota?')}</b>
+          <div class="nf-modos mt" role="radiogroup" aria-label="${t('Destino dos itens')}">
+            <button type="button" class="nf-modo" data-modo="peca" role="radio"><b>${t('Peças da oficina')}</b><small>${t('Para usar nas OS')}</small></button>
+            <button type="button" class="nf-modo" data-modo="balcao" role="radio"><b>${t('Produtos do balcão')}</b><small>${t('Vende na frente de loja (e usa nas OS)')}</small></button>
+            <button type="button" class="nf-modo" data-modo="misto" role="radio"><b>${t('Item por item')}</b><small>${t('Nota com peças e produtos juntos')}</small></button>
+          </div>
+          <div class="xs muted mt" id="nf-resumo"></div></div>
         <p class="small muted" style="margin-top:0">Confira cada item: escolha se ele <b>soma num item que já existe</b> ou vira um <b>cadastro novo</b>. Quantidade e custo podem ser ajustados. Cada item vira um <b>lote</b>.</p>
         <div id="nf-itens"></div>
         <label class="check mt"><input type="checkbox" id="nf-desp" checked> Lançar ${money(n.total)} como compra de estoque no financeiro</label>`,
       foot: `<button class="btn" data-close>Cancelar</button><button class="btn primary" id="nf-ok" style="flex:2">${icon('check')} Importar para o estoque</button>`,
     });
     const el = m.el;
+    let escolhido = null;   // 'misto' quando o lojista escolhe "item por item" no topo ou mexe num item
     const desenhar = () => {
-      $('#nf-itens', el).innerHTML = linhas.map((l, i) => `<div class="card mb" style="padding:12px;${l.incluir ? '' : 'opacity:.45'}">
+      const atual = escolhido === 'misto' ? 'misto' : modoAtual();
+      $$('[data-modo]', el).forEach(b => { const on = b.dataset.modo === atual; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
+      const inc = linhas.filter(l => l.incluir), nP = inc.filter(l => l.onde === 'peca').length, nB = inc.length - nP;
+      $('#nf-resumo', el).textContent = t('{p} na oficina · {b} no balcão', { p: nP, b: nB });
+      $('#nf-itens', el).innerHTML = linhas.map((l, i) => `<div class="card mb" style="padding:12px;${l.incluir ? '' : 'opacity:.45'}" data-linha="${i}">
         <label class="check" style="padding:0 0 6px"><input type="checkbox" data-inc="${i}" ${l.incluir ? 'checked' : ''}> <b>${esc(l.nome)}</b></label>
         <div class="xs muted mb">${l.codigo ? 'Cód. ' + esc(l.codigo) : ''}${l.ean ? ' · EAN ' + esc(l.ean) : ''}${l.unidade ? ' · ' + esc(l.unidade) : ''}</div>
+        <div class="seg mb nf-onde" role="radiogroup" aria-label="${t('Onde fica este item')}">
+          <button type="button" data-onde="${i}:peca" class="${l.onde === 'peca' ? 'on' : ''}" aria-checked="${l.onde === 'peca'}" role="radio" ${l.destino.startsWith('produto:') ? 'disabled' : ''}>${t('Oficina')}</button>
+          <button type="button" data-onde="${i}:balcao" class="${l.onde === 'balcao' ? 'on' : ''}" aria-checked="${l.onde === 'balcao'}" role="radio">${t('Balcão')}</button>
+        </div>
         <select class="input mb" data-dest="${i}">
-          <option value="novo:produto" ${l.destino === 'novo:produto' ? 'selected' : ''}>➕ Cadastrar como produto novo</option>
-          <option value="novo:peca" ${l.destino === 'novo:peca' ? 'selected' : ''}>➕ Cadastrar como peça nova</option>
-          ${l.sug.map(s => `<option value="${s.tipo}:${s.p.id}" ${l.destino === `${s.tipo}:${s.p.id}` ? 'selected' : ''}>Somar em: ${esc(s.p.nome)} (${s.tipo === 'peca' ? 'peça' : 'produto'}, tem ${s.p.qtd})</option>`).join('')}
+          <option value="novo" ${l.destino === 'novo' ? 'selected' : ''}>➕ ${l.onde === 'balcao' ? t('Cadastrar como produto novo do balcão') : t('Cadastrar como peça nova')}</option>
+          ${l.sug.map(s => `<option value="${s.tipo}:${s.p.id}" ${l.destino === `${s.tipo}:${s.p.id}` ? 'selected' : ''}>Somar em: ${esc(s.p.nome)} (${s.tipo === 'produto' || s.p.balcao ? 'balcão' : 'peça'}, tem ${fmtQtd(s.p.qtd)})</option>`).join('')}
         </select>
         <div class="form-row">${field('Quantidade', `<input class="input" inputmode="decimal" data-q="${i}" value="${fmtQtd(l.qtd)}">`)}${field('Custo un.', `<input class="input" inputmode="decimal" data-c="${i}" value="${moneyInput(l.custo)}">`)}</div>
-        ${l.destino.startsWith('novo:') ? field('Preço de venda', `<input class="input" inputmode="decimal" data-p="${i}" placeholder="0,00" value="${l.preco ? moneyInput(l.preco) : ''}">`, { opt: true }) : ''}
+        ${l.destino === 'novo' ? field('Preço de venda', `<input class="input" inputmode="decimal" data-p="${i}" placeholder="0,00" value="${l.preco ? moneyInput(l.preco) : ''}">`, { opt: true }) : ''}
       </div>`).join('');
       $$('[data-inc]', el).forEach(c => c.onchange = () => { linhas[c.dataset.inc].incluir = c.checked; desenhar(); });
-      $$('[data-dest]', el).forEach(s => s.onchange = () => { linhas[s.dataset.dest].destino = s.value; desenhar(); });
+      $$('[data-dest]', el).forEach(s => s.onchange = () => { const l = linhas[s.dataset.dest]; l.destino = s.value; if (s.value.startsWith('produto:')) l.onde = 'balcao'; desenhar(); });
+      $$('[data-onde]', el).forEach(b => b.onclick = () => { const [i, o] = b.dataset.onde.split(':'); linhas[i].onde = o; escolhido = 'misto'; desenhar(); });
       $$('[data-q]', el).forEach(x => x.oninput = () => { linhas[x.dataset.q].qtd = Math.max(0, parseNum(x.value)); });
       $$('[data-c]', el).forEach(x => x.oninput = () => { linhas[x.dataset.c].custo = parseMoney(x.value); });
       $$('[data-p]', el).forEach(x => x.oninput = () => { linhas[x.dataset.p].preco = parseMoney(x.value); });
     };
+    // escolha no topo: espelha para todos os itens (dá para trocar item por item depois)
+    $$('[data-modo]', el).forEach(b => b.onclick = () => {
+      const md = b.dataset.modo;
+      if (md === 'misto') { escolhido = 'misto'; return desenhar(); }
+      modo = md; escolhido = null;
+      linhas.forEach(l => { l.onde = l.destino.startsWith('produto:') ? 'balcao' : md; });
+      desenhar();
+    });
     desenhar();
     $('#nf-ok', el).onclick = async () => {
       const ok = linhas.filter(l => l.incluir && l.qtd > 0);
@@ -115,9 +143,11 @@ const NFe = {
       try {
         if (this.jaImportada(n.chave) || await this.jaImportadaNaNuvem(n.chave)) { b.disabled = false; return toast('Esta nota já foi importada nesta oficina.', true); }
       } catch (e) { b.disabled = false; return toast(e.message, true); }
+      if (escolhido !== 'misto' && modoAtual() !== 'misto') Store.s.nfeDestino = modoAtual();   // lembra a escolha para a próxima nota
       this.confirmar(n, ok, $('#nf-desp', el).checked);
       m.close(); App.refresh();
-      toast(`NF-e ${n.numero || ''} importada: ${ok.length} item(ns) no estoque`);
+      const nB = ok.filter(l => l.onde === 'balcao').length;
+      toast(`NF-e ${n.numero || ''} importada: ${ok.length - nB} na oficina, ${nB} no balcão`);
     };
   },
 
@@ -128,20 +158,24 @@ const NFe = {
     const resumo = [];
     for (const l of linhas) {
       const [tipo, ref] = l.destino.split(':');
+      const balcao = l.onde === 'balcao';
       let tipoItem, item;
       if (tipo === 'novo') {
-        tipoItem = ref; // produto | peca
+        // item novo vira peça; "balcão" = peça marcada "vende no balcão" (o Balcão vende essas peças e também usa nas OS)
+        tipoItem = ref === 'produto' ? 'produto' : 'peca';
         item = { id: uid(), unidade: /^l|lt|litro/i.test(l.unidade || '') ? 'L' : /^ml/i.test(l.unidade || '') ? 'ml' : /^kg/i.test(l.unidade || '') ? 'kg' : /^(m|mt|metro)$/i.test(l.unidade || '') ? 'm' : 'un', nome: l.nome, codigo: l.ean || l.codigo, custo: l.custo, preco: l.preco || 0, qtd: 0, minimo: 0, categoria: '', fornecedorId: forn?.id || '', criadoEm: nowISO(), entradaEm: nowISO() };
         if (tipoItem === 'produto') Object.assign(item, { garantiaDias: 90 });
+        else if (balcao) Object.assign(item, { balcao: true, garantiaDias: 90 });
         (tipoItem === 'peca' ? Store.db.pecas : Store.db.produtos).push(item);
       } else {
         tipoItem = tipo;
         item = tipo === 'peca' ? Store.peca(ref) : Store.produto(ref);
         if (!item) continue;
         item.custo = l.custo;
+        if (tipo === 'peca' && balcao && !item.balcao) item.balcao = true;   // passa a vender no balcão (quem já está no balcão continua)
       }
       const lote = Store.criarLote({ tipoItem, item, qtd: l.qtd, custo: l.custo, fornecedor: forn?.nome || n.fornecedor.nome, numero: `NF${n.numero || ''}-${l.nItem || resumo.length + 1}`, nfeChave: n.chave, motivo: `NF-e ${n.numero || ''} (${n.fornecedor.nome || ''})` });
-      resumo.push({ nome: item.nome, tipoItem, itemId: item.id, qtd: l.qtd, custo: l.custo, loteId: lote.id });
+      resumo.push({ nome: item.nome, tipoItem, itemId: item.id, qtd: l.qtd, custo: l.custo, loteId: lote.id, onde: tipoItem === 'produto' || item.balcao ? 'balcao' : 'peca' });
     }
     Store.db.nfe_entradas.push({ id: n.chave, chave: n.chave, numero: n.numero, serie: n.serie, data: n.data, fornecedor: n.fornecedor, fornecedorId: forn?.id || null,
       total: n.total, itens: resumo, importadoEm: nowISO(), importadoPor: Store.quem().nome || null });
