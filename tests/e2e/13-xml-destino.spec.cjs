@@ -60,3 +60,38 @@ test('XML: escolha no topo espelha para todos os itens e dá para trocar item po
   expect(await page.evaluate(() => Store.s.nfeDestino)).toBe('balcao');
   expect(erros).toEqual([]);
 });
+
+test('XML: "Peças da oficina" leva para a oficina até o item que somava num produto antigo do balcão', async ({ page }, info) => {
+  test.skip(info.project.name !== 'celular', 'no celular');
+  const erros = vigiarErros(page);
+  await criarContaEOficina(page, { email: emailNovo('xmlprod'), oficina: 'Oficina Produto', tipos: 'moto' });
+  // um produto antigo do balcão (importação de antes) com o mesmo EAN do óleo
+  await page.evaluate(() => { Store.db.produtos.push({ id: 'prod-oleo', nome: 'Óleo 5W30 (produto)', codigo: '7891234567895', qtd: 1, preco: 50, custo: 38 }); Store.save(); });
+  const modal = page.locator('.modal').last();
+  const modoOn = () => modal.locator('.nf-modo.on').getAttribute('data-modo');
+  await page.evaluate(x => NFe.previa(NFe.ler(x)), xml(601, '42251112345678000199550010000006011000006011'));
+  expect(await modoOn()).toBe('misto');
+  await expect(modal.locator('#nf-resumo')).toHaveText('1 na oficina · 1 no balcão');
+  await expect(modal.locator('[data-dest="0"]')).toHaveValue('produto:prod-oleo');
+  // toque em "Peças da oficina": todos vão para a oficina (o óleo vira peça nova)
+  await modal.locator('[data-modo=peca]').tap();
+  expect(await modoOn()).toBe('peca');
+  await expect(modal.locator('#nf-resumo')).toHaveText('2 na oficina · 0 no balcão');
+  await expect(modal.locator('[data-dest="0"]')).toHaveValue('novo');
+  // e volta para o balcão: o óleo continua como peça nova, agora no balcão
+  await modal.locator('[data-modo=balcao]').tap();
+  expect(await modoOn()).toBe('balcao');
+  await modal.locator('[data-modo=peca]').tap();
+  expect(await modoOn()).toBe('peca');
+  // no item: "Oficina" também tira do produto antigo
+  await page.evaluate(() => closeAllModals());
+  await page.evaluate(x => NFe.previa(NFe.ler(x)), xml(602, '42251112345678000199550010000006021000006021'));
+  await modal.locator('[data-onde="0:peca"]').tap();
+  await expect(modal.locator('[data-dest="0"]')).toHaveValue('novo');
+  await expect(modal.locator('#nf-resumo')).toHaveText('2 na oficina · 0 no balcão');
+  await modal.locator('#nf-ok').tap();
+  await expect(page.locator('.toast').last()).toContainText('2 na oficina, 0 no balcão');
+  const r = await page.evaluate(() => ({ pecas: Store.db.pecas.filter(p => !p.deleted).map(p => [p.nome, !!p.balcao]).sort(), prod: Store.produto('prod-oleo').qtd }));
+  expect(r).toEqual({ pecas: [['OLEO 5W30 SINTETICO', false], ['PASTILHA DE FREIO DIANTEIRA', false]], prod: 1 });
+  expect(erros).toEqual([]);
+});

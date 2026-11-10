@@ -526,6 +526,7 @@ a:hover { color: var(--gold-3); }
 .nf-modo.on { border-color: var(--gold); background: var(--gold-soft); box-shadow: 0 0 0 1px var(--gold) inset; }
 @media (max-width: 520px) { .nf-modos { grid-template-columns: 1fr; } .nf-modo { min-height: 52px; } }
 .nf-onde button { min-width: 96px; }
+.nf-modo, .nf-onde button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }   /* toque rápido no iPhone não dá zoom */
 .nf-onde button:disabled { opacity: .45; cursor: not-allowed; }
 .placa-input { font: 700 18px ui-monospace, Menlo, monospace; letter-spacing: .08em; text-transform: uppercase; }
 .placa-aviso { min-height: 0; margin-top: 4px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }

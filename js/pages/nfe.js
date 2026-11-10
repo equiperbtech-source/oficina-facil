@@ -100,6 +100,11 @@ const NFe = {
       foot: `<button class="btn" data-close>Cancelar</button><button class="btn primary" id="nf-ok" style="flex:2">${icon('check')} Importar para o estoque</button>`,
     });
     const el = m.el;
+    // item que somava num produto do balcão (cadastro antigo) e vai para a oficina: soma numa peça parecida ou vira peça nova
+    const paraOficina = l => {
+      if (l.destino.startsWith('produto:')) { const pc = l.sug.find(x => x.tipo === 'peca'); l.destino = pc ? `peca:${pc.p.id}` : 'novo'; }
+      l.onde = 'peca';
+    };
     let escolhido = null;   // 'misto' quando o lojista escolhe "item por item" no topo ou mexe num item
     const desenhar = () => {
       const atual = escolhido === 'misto' ? 'misto' : modoAtual();
@@ -110,7 +115,7 @@ const NFe = {
         <label class="check" style="padding:0 0 6px"><input type="checkbox" data-inc="${i}" ${l.incluir ? 'checked' : ''}> <b>${esc(l.nome)}</b></label>
         <div class="xs muted mb">${l.codigo ? 'Cód. ' + esc(l.codigo) : ''}${l.ean ? ' · EAN ' + esc(l.ean) : ''}${l.unidade ? ' · ' + esc(l.unidade) : ''}</div>
         <div class="seg mb nf-onde" role="radiogroup" aria-label="${t('Onde fica este item')}">
-          <button type="button" data-onde="${i}:peca" class="${l.onde === 'peca' ? 'on' : ''}" aria-checked="${l.onde === 'peca'}" role="radio" ${l.destino.startsWith('produto:') ? 'disabled' : ''}>${t('Oficina')}</button>
+          <button type="button" data-onde="${i}:peca" class="${l.onde === 'peca' ? 'on' : ''}" aria-checked="${l.onde === 'peca'}" role="radio">${t('Oficina')}</button>
           <button type="button" data-onde="${i}:balcao" class="${l.onde === 'balcao' ? 'on' : ''}" aria-checked="${l.onde === 'balcao'}" role="radio">${t('Balcão')}</button>
         </div>
         <select class="input mb" data-dest="${i}">
@@ -122,7 +127,7 @@ const NFe = {
       </div>`).join('');
       $$('[data-inc]', el).forEach(c => c.onchange = () => { linhas[c.dataset.inc].incluir = c.checked; desenhar(); });
       $$('[data-dest]', el).forEach(s => s.onchange = () => { const l = linhas[s.dataset.dest]; l.destino = s.value; if (s.value.startsWith('produto:')) l.onde = 'balcao'; desenhar(); });
-      $$('[data-onde]', el).forEach(b => b.onclick = () => { const [i, o] = b.dataset.onde.split(':'); linhas[i].onde = o; escolhido = 'misto'; desenhar(); });
+      $$('[data-onde]', el).forEach(b => b.onclick = () => { const [i, o] = b.dataset.onde.split(':'); if (o === 'peca') paraOficina(linhas[i]); else linhas[i].onde = o; escolhido = 'misto'; desenhar(); });
       $$('[data-q]', el).forEach(x => x.oninput = () => { linhas[x.dataset.q].qtd = Math.max(0, parseNum(x.value)); });
       $$('[data-c]', el).forEach(x => x.oninput = () => { linhas[x.dataset.c].custo = parseMoney(x.value); });
       $$('[data-p]', el).forEach(x => x.oninput = () => { linhas[x.dataset.p].preco = parseMoney(x.value); });
@@ -132,7 +137,7 @@ const NFe = {
       const md = b.dataset.modo;
       if (md === 'misto') { escolhido = 'misto'; return desenhar(); }
       modo = md; escolhido = null;
-      linhas.forEach(l => { l.onde = l.destino.startsWith('produto:') ? 'balcao' : md; });
+      linhas.forEach(l => { if (md === 'peca') paraOficina(l); else l.onde = 'balcao'; });
       desenhar();
     });
     desenhar();
