@@ -30,7 +30,7 @@ const Fotos = {
     const blob = await this.reduzir(file);
     if (!blob || blob.size > 3 * 1024 * 1024) throw new Error('Foto muito grande mesmo depois de reduzir');
     const caminho = `${Cloud.loja.id}/veiculos/${uid()}.jpg`;
-    const { error } = await this.st().upload(caminho, blob, { contentType: 'image/jpeg', upsert: false });
+    const { error } = await this.st().upload(caminho, await blob.arrayBuffer(), { contentType: 'image/jpeg', upsert: false });
     if (error) throw new Error(/bucket|not found/i.test(error.message) ? 'As fotos ainda não estão ativas no banco (migração 25)' : error.message);
     return caminho;
   },

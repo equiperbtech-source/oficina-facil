@@ -8,6 +8,7 @@ const NAV = [
   ['Gestão Operacional', [
     ['dashboard', 'Painel', 'dash'],
     ['patio', 'Pátio', 'car'],
+    ['mecanico', 'Mecânico', 'wrench'],
     ['os', 'Ordens de serviço', 'file'],
     ['orcamentos', 'Orçamentos', 'card'],
     ['metas', 'Metas', 'star'],
@@ -241,6 +242,8 @@ const App = {
     }
     this.parseHash();
     if (this.route === 'bancada') this.route = 'patio';   // endereço antigo
+    if (Cloud.papel() === 'tecnico' && (!location.hash || /^#\/?(dashboard)?$/.test(location.hash))) this.route = 'mecanico';   // mecânico abre direto na tela dele
+    FilaFotos.ligar();
     Etapas.aplicar();
     if (!Pages[this.route] || !this.rotaVisivel(this.route)) this.route = 'dashboard';
     if (!$('.shell')) this.renderShell();

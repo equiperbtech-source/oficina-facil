@@ -573,3 +573,9 @@ a:hover { color: var(--gold-3); }
 .prod-card.on { border: 2px solid var(--gold); }
 .section-h { display: flex; align-items: center; gap: 8px; margin: 18px 0 8px; font-size: 15px; }
 .aviso-plano.green { background: #F0FDF4; border-color: #86EFAC; color: #137333; }
+/* tela do mecânico */
+.mec-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.mec-card { border-left: 4px solid var(--bar, var(--gold)); }
+.placa-grande { font-size: 22px; padding: 4px 12px; border-top-width: 6px; }
+.mec-acoes .btn { flex-direction: column; gap: 4px; min-height: 64px; font-size: 13px; }
+.mp-item { display: block; width: 100%; border: 0; border-bottom: 1px solid var(--line); background: var(--card); padding: 12px 14px; cursor: pointer; min-height: 56px; }
