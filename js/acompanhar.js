@@ -3,7 +3,7 @@
 const GARANTIA_REPARO_DIAS = 90;
 const FORMAS = { dinheiro: 'Dinheiro', pix: 'PIX', debito: 'Cartão de Débito', credito: 'Cartão de Crédito', transferencia: 'Transferência', outro: 'Outro' };
 const ST = {
-  analise:      { label: 'Em análise',          icon: 'search',      color: '#2563EB', desc: 'Nosso técnico está avaliando o aparelho.' },
+  analise:      { label: 'Em análise',          icon: 'search',      color: '#1D4ED8', desc: 'Nosso técnico está avaliando o aparelho.' },
   peca:         { label: 'Aguardando peça',     icon: 'box',         color: '#C2410C', desc: 'Estamos aguardando a chegada da peça para o reparo.' },
   servico:      { label: 'Em reparo',           icon: 'wrench',      color: '#7C3AED', desc: 'Seu aparelho está na bancada sendo reparado.' },
   concluido:    { label: 'Pronto para retirada', icon: 'checkCircle', color: '#137333', desc: 'Reparo finalizado! Pode vir buscar seu aparelho.' },

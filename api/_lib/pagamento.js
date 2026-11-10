@@ -18,11 +18,11 @@ const VALIDA = {
 };
 
 // e-mail de boas-vindas da compra sem oficina (branco e azul), no idioma da plataforma
-const caixaEmail = (titulo, texto, link, botao) => `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;background:#FFFFFF;color:#0F172A;border:1px solid #E3E8EF;border-top:4px solid #1D4ED8;border-radius:12px;padding:24px">
-     <div style="font-size:13px;font-weight:bold;color:#1D4ED8;margin-bottom:12px">Oficina Simples</div>
+const caixaEmail = (titulo, texto, link, botao) => `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;background:#FFFFFF;color:#0F172A;border:1px solid #E3E8EF;border-top:4px solid #1E3A8A;border-radius:12px;padding:24px">
+     <div style="font-size:13px;font-weight:bold;color:#1E3A8A;margin-bottom:12px">Oficina Simples</div>
      <h2 style="margin:0 0 10px;font-size:22px;color:#0F172A">${titulo}</h2>
      <p style="margin:0 0 18px;font-size:15px;line-height:1.5;color:#0F172A">${texto}</p>
-     <p style="margin:0"><a href="${escHtml(link)}" style="display:inline-block;background:#1D4ED8;color:#FFFFFF;padding:14px 22px;border-radius:10px;font-weight:bold;text-decoration:none">${botao}</a></p></div>`;
+     <p style="margin:0"><a href="${escHtml(link)}" style="display:inline-block;background:#1E3A8A;color:#FFFFFF;padding:14px 22px;border-radius:10px;font-weight:bold;text-decoration:none">${botao}</a></p></div>`;
 const BOAS_VINDAS = {
   pt: (email, link) => ['Sua assinatura foi confirmada: crie o acesso da sua oficina',
     caixaEmail('Bem-vindo! 🎉', `Recebemos o pagamento da sua assinatura. Falta só criar o acesso da sua oficina com <b>este mesmo e-mail</b> (${escHtml(email)}): o plano é ativado na hora.`, link, 'Criar minha oficina')],

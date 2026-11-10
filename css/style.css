@@ -11,21 +11,21 @@
   --text: #0F172A;
   --muted: #5B6B80;               /* cinza do texto secundário (≈ #64748B, um tom mais escuro para passar AA sobre #F5F7FA) */
   --muted-2: #5B6B80;
-  --gold: #1D4ED8;                /* azul principal (botões) */
-  --gold-2: #2563EB;              /* azul de destaque (links, ícones) */
-  --gold-3: #1E40AF;              /* hover */
-  --gold-rgb: 29, 78, 216;
+  --gold: #1E3A8A;                /* azul escuro principal (botões, menu ativo, cabeçalhos) */
+  --gold-2: #1D4ED8;              /* azul de destaque (links, ícones, foco) */
+  --gold-3: #172554;              /* hover / pressionado */
+  --gold-rgb: 30, 58, 138;
   --gold-soft: #EFF6FF;           /* azul suave (fundos, chips) */
   --gold-soft-2: #DBEAFE;
   --btn-texto: #FFFFFF;
-  --gold-grad: linear-gradient(180deg, #2563EB 0%, #1D4ED8 100%);
+  --gold-grad: linear-gradient(180deg, #1E3A8A 0%, #1E3A8A 100%);
   --sombra-rgb: 15, 23, 42;
   --green: #137333;               /* texto de sucesso (o #16A34A fica para fundos e ícones) */
   --green-rgb: 22, 163, 74;
   --red: #B91C1C;                 /* texto de erro (o #DC2626 fica para fundos e ícones) */
   --red-rgb: 220, 38, 38;
-  --blue: #2563EB;
-  --blue-rgb: 37, 99, 235;
+  --blue: #1D4ED8;
+  --blue-rgb: 29, 78, 216;
   --orange: #C2410C;              /* texto de alerta (o #D97706 fica para fundos e ícones) */
   --orange-rgb: 217, 119, 6;
   --purple: #7C3AED;
@@ -43,7 +43,7 @@ body {
   font-size: 15px; line-height: 1.45; min-height: 100vh;
   -webkit-font-smoothing: antialiased;
 }
-a { color: var(--gold); text-decoration: none; }
+a { color: var(--gold-2); text-decoration: none; }
 button, input, select, textarea { font: inherit; color: inherit; }
 svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 svg.i.sm { width: 16px; height: 16px; }
@@ -470,9 +470,9 @@ body.com-carrinho .main { padding-bottom: calc(110px + var(--safe-b)); }
 .ft-th img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .ft-th.ft-erro { display: grid; place-items: center; font-size: 11px; color: var(--muted); }
 .ft-rm { position: absolute; top: 4px; right: 4px; width: 28px; height: 28px; border-radius: 50%; border: 0; background: rgba(0,0,0,.72); color: #fff; display: grid; place-items: center; cursor: pointer; }
-.ft-add { aspect-ratio: 1; border-radius: 12px; border: 1.5px dashed var(--gold, #1D4ED8); color: var(--gold, #1D4ED8); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; font-size: 12px; font-weight: 600; cursor: pointer; text-align: center; padding: 6px; }
+.ft-add { aspect-ratio: 1; border-radius: 12px; border: 1.5px dashed var(--gold, #1E3A8A); color: var(--gold, #1E3A8A); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; font-size: 12px; font-weight: 600; cursor: pointer; text-align: center; padding: 6px; }
 .ft-carregando { display: grid; place-items: center; }
-.ft-carregando .spinner { width: 24px; height: 24px; border-radius: 50%; border: 3px solid var(--line-2); border-top-color: var(--gold, #1D4ED8); animation: ft-gira .8s linear infinite; }
+.ft-carregando .spinner { width: 24px; height: 24px; border-radius: 50%; border: 3px solid var(--line-2); border-top-color: var(--gold, #1E3A8A); animation: ft-gira .8s linear infinite; }
 @keyframes ft-gira { to { transform: rotate(360deg); } }
 
 /* ---------- Tema claro: acabamento ----------

@@ -10,11 +10,11 @@ const PLATAFORMA = {
   suporteWhats: '+55 48 99115-4821',   // WhatsApp do suporte (botão "Falar com o suporte" do menu)
   get es() { return typeof I18N !== 'undefined' && I18N.idioma === 'es'; },
   get nome() { return 'Oficina Simples'; },
-  // nome com a segunda parte em dourado (nunca traduzido pelo tradutor de tela)
+  // nome com a segunda parte em azul (nunca traduzido pelo tradutor de tela)
   marcaTexto() { return '<span data-no-i18n>Oficina <span class="gold">Simples</span></span>'; },
 };
 const FONTES = ['Inter', 'Roboto', 'Poppins', 'Montserrat', 'Open Sans', 'Lato'];
-const TEMA_PADRAO = { cor_primaria: '#1D4ED8', cor_secundaria: '#1E40AF', cor_fundo: '#FFFFFF', fonte: 'Inter' };
+const TEMA_PADRAO = { cor_primaria: '#1E3A8A', cor_secundaria: '#172554', cor_fundo: '#FFFFFF', fonte: 'Inter' };
 // variáveis que o tema da oficina pode trocar (sem tema: valem as do css/style.css)
 const TEMA_VARS = ['--gold', '--gold-2', '--gold-3', '--gold-rgb', '--gold-soft', '--gold-soft-2', '--gold-grad', '--btn-texto',
   '--bg', '--bg-2', '--card', '--card-2', '--line', '--line-2', '--line-input', '--text', '--muted', '--muted-2', '--sombra-rgb',

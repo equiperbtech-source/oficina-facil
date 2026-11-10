@@ -11,7 +11,7 @@ const PADROES_IDIOMA = {
 const DB_KEY = 'oficina_db_v1';
 
 const OS_STATUS = {
-  analise:   { label: 'Em Análise',       icon: 'alertCircle', color: '#2563EB', pill: 'blue' },
+  analise:   { label: 'Em Análise',       icon: 'alertCircle', color: '#1D4ED8', pill: 'blue' },
   peca:      { label: 'Aguardando Peça',  icon: 'box',         color: '#C2410C', pill: 'orange' },
   servico:   { label: 'Em Serviço',       icon: 'wrench',      color: '#7C3AED', pill: 'purple' },
   concluido: { label: 'Concluído',        icon: 'checkCircle', color: '#137333', pill: 'green' },

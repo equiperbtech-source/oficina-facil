@@ -1,8 +1,8 @@
 /* PDF de garantia (jsPDF). Usado pelo app e pela página pública de acompanhamento.
    Recebe um objeto simples para funcionar com dados locais ou vindos do Supabase. */
 // cores do tema da loja nos PDFs (sem tema: o dourado original)
-const pdfCor = () => (typeof Tema !== 'undefined' && Tema.atual ? Tema.rgb(Tema.atual.cor_primaria) : [29, 78, 216]);   // azul da Oficina Simples
-const pdfCorEscura = () => (typeof Tema !== 'undefined' && Tema.atual ? Tema.rgb(Tema.misturar(Tema.atual.cor_secundaria, '#000000', 0.2)) : [30, 64, 175]);
+const pdfCor = () => (typeof Tema !== 'undefined' && Tema.atual ? Tema.rgb(Tema.atual.cor_primaria) : [30, 58, 138]);   // azul escuro da Oficina Simples
+const pdfCorEscura = () => (typeof Tema !== 'undefined' && Tema.atual ? Tema.rgb(Tema.misturar(Tema.atual.cor_secundaria, '#000000', 0.2)) : [23, 37, 84]);
 
 const Pdf = {
   logo: null, logoUrl: null,

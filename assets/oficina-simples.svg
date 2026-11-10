@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Oficina Simples">
-  <rect width="512" height="512" rx="112" fill="#1D4ED8"/>
+  <rect width="512" height="512" rx="112" fill="#1E3A8A"/>
   <!-- roda / volante -->
   <g fill="none" stroke="#FFFFFF" stroke-linecap="round">
     <circle cx="222" cy="290" r="128" stroke-width="34"/>
@@ -8,7 +8,7 @@
   </g>
   <!-- chave inglesa: contorno azul (separa da roda) e depois o branco por cima -->
   <g transform="rotate(45 372 140)">
-    <g fill="#1D4ED8" stroke="#1D4ED8" stroke-width="18" stroke-linejoin="round">
+    <g fill="#1E3A8A" stroke="#1E3A8A" stroke-width="18" stroke-linejoin="round">
       <path d="M350 62a58 58 0 1 0 44 0v50h-44z"/><rect x="354" y="150" width="36" height="116" rx="18"/>
     </g>
     <g fill="#FFFFFF">

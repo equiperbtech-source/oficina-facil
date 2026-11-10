@@ -23,12 +23,19 @@ test('TUDO.sql roda duas vezes sem erro e os planos estão certos', async ({}, i
   // nenhuma tabela do schema public sem RLS
   const semRls = psql(['-tA', '-c', "select string_agg(relname, ',') from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity"], banco).trim();
   expect(semRls).toBe('');
-  // migração 28 (tema claro): o reverter roda 2x, a migração volta 2x, e o padrão novo é azul/branco
+  // migrações da Oficina Simples (28+): cada reverter roda 2x (do último para o primeiro) e a migração volta 2x
   const RAIZ = path.join(__dirname, '..', '..');
   const arq = f => psql(['-f', path.join(RAIZ, 'supabase', 'saas', f)], banco);
-  expect(() => { arq('28_tema_claro_reverter.sql'); arq('28_tema_claro_reverter.sql'); }).not.toThrow();
-  expect(psql(['-tA', '-c', "select column_default from information_schema.columns where table_name = 'lojas_tema' and column_name = 'cor_primaria'"], banco)).toContain('#d4af37');
-  expect(() => { arq('28_tema_claro.sql'); arq('28_tema_claro.sql'); }).not.toThrow();
-  expect(psql(['-tA', '-c', "select column_default from information_schema.columns where table_name = 'lojas_tema' and column_name = 'cor_primaria'"], banco)).toContain('#1D4ED8');
+  const corPadrao = () => psql(['-tA', '-c', "select column_default from information_schema.columns where table_name = 'lojas_tema' and column_name = 'cor_primaria'"], banco);
+  const NOVAS = fs.readdirSync(path.join(RAIZ, 'supabase', 'saas')).filter(f => /^\d\d_.*\.sql$/.test(f) && !f.includes('reverter') && Number(f.slice(0, 2)) >= 28).sort();
+  for (const m of [...NOVAS].reverse()) {
+    const rev = m.replace('.sql', '_reverter.sql');
+    expect(fs.existsSync(path.join(RAIZ, 'supabase', 'saas', rev)), `${m} sem reverter`).toBe(true);
+    expect(() => { arq(rev); arq(rev); }, `${rev} 2x`).not.toThrow();
+    if (m.startsWith('29_')) expect(corPadrao()).toContain('#1D4ED8');
+    if (m.startsWith('28_')) expect(corPadrao()).toContain('#d4af37');
+  }
+  for (const m of NOVAS) expect(() => { arq(m); arq(m); }, `${m} 2x`).not.toThrow();
+  expect(corPadrao()).toContain('#1E3A8A');
   psql(['-c', `drop database if exists ${banco} with (force)`]);
 });

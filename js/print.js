@@ -11,13 +11,13 @@ const Print = {
     }
     .pdoc { font-family: Inter, Arial, sans-serif; color: #111; font-size: 12.5px; line-height: 1.45; background: #fff; }
     /* cabeçalho em fundo branco com moldura (sem faixa preta: economiza tinta) */
-    .pdoc .ph { display: flex; align-items: center; gap: 14px; background: #fff; color: #111; padding: 12px 16px; border-radius: 10px; border: 2px solid var(--gold, #1D4ED8); }
+    .pdoc .ph { display: flex; align-items: center; gap: 14px; background: #fff; color: #111; padding: 12px 16px; border-radius: 10px; border: 2px solid var(--gold, #1E3A8A); }
     .pdoc .ph img { width: 64px; height: 64px; object-fit: contain; border-radius: 8px; }
     .pdoc .ph .n { font-size: 20px; font-weight: 800; color: #111; }
     .pdoc .ph .d { font-size: 11px; color: #555; }
     .pdoc .ph .doc { margin-left: auto; text-align: right; }
     .pdoc .ph .doc b { display: block; font-size: 16px; color: #111; }
-    .pdoc h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .1em; margin: 16px 0 6px; padding-bottom: 4px; border-bottom: 2px solid var(--gold, #1D4ED8); color: #000; }
+    .pdoc h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .1em; margin: 16px 0 6px; padding-bottom: 4px; border-bottom: 2px solid var(--gold, #1E3A8A); color: #000; }
     .pdoc table { width: 100%; border-collapse: collapse; }
     .pdoc td, .pdoc th { border: 1px solid #ccc; padding: 6px 8px; text-align: left; vertical-align: top; }
     .pdoc th { background: #f3f3f3; font-size: 11px; text-transform: uppercase; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -34,7 +34,7 @@ const Print = {
     .pdoc .cut { border-top: 1px dashed #999; margin: 22px 0; position: relative; }
     .pdoc .chk { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px 10px; font-size: 11px; }
     .pdoc .foot { text-align: center; font-size: 10px; color: #777; margin-top: 18px; }
-    .pdoc .stamp { display: inline-block; border: 2px solid var(--gold, #1D4ED8); color: var(--gold-3, #1E40AF); font-weight: 800; padding: 4px 12px; border-radius: 6px; letter-spacing: .1em; }
+    .pdoc .stamp { display: inline-block; border: 2px solid var(--gold, #1E3A8A); color: var(--gold-3, #172554); font-weight: 800; padding: 4px 12px; border-radius: 6px; letter-spacing: .1em; }
     .etq { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
     .etq div { border: 1px dashed #999; padding: 8px; font-size: 11px; text-align: center; page-break-inside: avoid; }
     .etq b { display: block; font-size: 13px; }

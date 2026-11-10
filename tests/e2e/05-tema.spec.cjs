@@ -27,6 +27,23 @@ async function semDourado(page) {
   });
   expect(achou).toEqual([]);
 }
+// Etapa 2b: botões principais, menu ativo e FAB em azul escuro; nada do azul médio antigo (#1D4ED8/#2563EB) como fundo
+async function azulEscuro(page) {
+  const r = await page.evaluate(() => {
+    const MEDIOS = ['rgb(29, 78, 216)', 'rgb(37, 99, 235)', 'rgb(30, 64, 175)'];
+    const ruins = [], escuros = [];
+    for (const el of document.querySelectorAll('.btn.primary, .fab, .nav a.active, .side-nav a.active, .tab.active, .chip.active')) {
+      const s = getComputedStyle(el); if (s.display === 'none' || !el.getBoundingClientRect().width) continue;
+      const fundo = s.backgroundColor + ' ' + s.backgroundImage;
+      if (MEDIOS.some(c => fundo.includes(c))) ruins.push(`${el.tagName}.${el.className}`);
+      if (el.matches('.btn.primary, .fab') && fundo.includes('rgb(30, 58, 138)')) escuros.push(el.className);
+    }
+    const temPrimario = [...document.querySelectorAll('.btn.primary, .fab')].some(e => e.getBoundingClientRect().width);
+    return { ruins, ok: !temPrimario || escuros.length > 0 };
+  });
+  expect(r.ruins, 'azul médio antigo em botão/menu').toEqual([]);
+  expect(r.ok, 'botão principal em azul escuro #1E3A8A').toBe(true);
+}
 async function botoes44(page) {
   const pequenos = await page.evaluate(() => [...document.querySelectorAll('button, .btn, a.btn, .icon-btn')]
     .filter(b => {
@@ -47,7 +64,7 @@ test('tema claro em todas as telas principais', async ({ page }, info) => {
   // login
   await page.goto('/');
   await expect(page.locator('#login-form')).toBeVisible();
-  await contraste(page, 'login'); await semDourado(page); await semRolagemLateral(page);
+  await contraste(page, 'login'); await semDourado(page); await azulEscuro(page); await semRolagemLateral(page);
   if (cel) await botoes44(page);
   await shot('login');
 
@@ -57,14 +74,14 @@ test('tema claro em todas as telas principais', async ({ page }, info) => {
   const os = await semearOS(page);
   await page.goto('/#/dashboard');
   await page.waitForTimeout(300);
-  await contraste(page, 'painel'); await semDourado(page); await semRolagemLateral(page);
+  await contraste(page, 'painel'); await semDourado(page); await azulEscuro(page); await semRolagemLateral(page);
   if (cel) await botoes44(page);
   await shot('painel');
 
   // lista de OS e detalhe
   await page.goto('/#/os');
   await expect(page.locator('#os-list')).toContainText('Maria Souza');
-  await contraste(page, 'lista de OS'); await semDourado(page); await semRolagemLateral(page);
+  await contraste(page, 'lista de OS'); await semDourado(page); await azulEscuro(page); await semRolagemLateral(page);
   if (cel) await botoes44(page);
   await shot('os-lista');
   await page.evaluate(id => OSPage.detalhe(id), os.id);
@@ -78,7 +95,7 @@ test('tema claro em todas as telas principais', async ({ page }, info) => {
   // pátio (quadro por etapa)
   await page.goto('/#/bancada');
   await expect(page.locator('body')).toContainText('Maria Souza');
-  await contraste(page, 'pátio'); await semDourado(page);
+  await contraste(page, 'pátio'); await semDourado(page); await azulEscuro(page);
   if (cel) await botoes44(page);
   await shot('patio');
 
@@ -91,7 +108,7 @@ test('tema claro em todas as telas principais', async ({ page }, info) => {
   const pub = await page.context().newPage(); const errosPub = vigiarErros(pub);
   await pub.goto(`/acompanhar/${os.token}`);
   await expect(pub.locator('#track')).toContainText(`#${os.numero}`);
-  await contraste(pub, 'link do cliente'); await semDourado(pub); await semRolagemLateral(pub);
+  await contraste(pub, 'link do cliente'); await semDourado(pub); await azulEscuro(pub); await semRolagemLateral(pub);
   if (cel) await botoes44(pub);
   await pub.screenshot({ path: path.join(PRINTS, `etapa2-link-cliente-${sufixo}.png`), fullPage: true });
   expect(errosPub).toEqual([]);
@@ -116,7 +133,7 @@ test('tema claro em todas as telas principais', async ({ page }, info) => {
       const d = cx.getImageData(0, 0, cv.width, cv.height).data; let azul = 0, dourado = 0, escuro = 0;
       for (let i = 0; i < d.length; i += 4) {
         const [r, g, b] = [d[i], d[i + 1], d[i + 2]];
-        if (b > 150 && r < 90 && g < 130) azul++;
+        if (b > 110 && r < 90 && g < 110 && b - r > 50) azul++;
         if (r > 170 && g > 130 && b < 90 && r - b > 100) dourado++;
         if (r < 40 && g < 40 && b < 40) escuro++;
       }
@@ -160,7 +177,7 @@ test('entrada do painel admin no tema novo', async ({ page }, info) => {
   const erros = vigiarErros(page);
   await page.goto('/admin-entrar.html');
   await expect(page.locator('body')).toContainText('Oficina Simples');
-  await contraste(page, 'admin'); await semDourado(page); await semRolagemLateral(page);
+  await contraste(page, 'admin'); await semDourado(page); await azulEscuro(page); await semRolagemLateral(page);
   if (info.project.name === 'celular') await botoes44(page);
   await page.screenshot({ path: path.join(PRINTS, `etapa2-admin-${info.project.name}.png`) });
   expect(erros).toEqual([]);

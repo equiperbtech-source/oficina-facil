@@ -1,5 +1,5 @@
 /* Cache offline do app */
-const CACHE = 'oficina-v1';
+const CACHE = 'oficina-v2';
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest', 'css/style.css',
   'js/config.js', 'js/i18n.js', 'js/i18n-es.js', 'js/vendor/supabase.js', 'js/cloud.js', 'js/vendor/jspdf.umd.min.js', 'js/pdf.js',
