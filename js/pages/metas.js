@@ -62,7 +62,7 @@ Pages.metas = {
     const passados = atual ? new Date().getDate() : mes < monthKey() ? diasMes : 0;
     const n = Metas.numeros(mes);
     const nomeMes = (s => s.charAt(0).toUpperCase() + s.slice(1))(new Date(ano, m - 1, 1).toLocaleDateString(loc(), { month: 'long', year: 'numeric' }));
-    const pro = Cloud.temRecurso('metas_funcionario') || !Cloud.enabled;
+    const pro = true;   // a tela inteira já depende do recurso "metas" do plano
     main.innerHTML = `
       ${pageHead('star', 'Metas', 'Metas do mês da oficina e de cada mecânico.')}
       <div class="row between wrap mb" style="gap:8px">

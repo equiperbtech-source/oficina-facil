@@ -98,12 +98,12 @@ const NFe = {
           <option value="novo:peca" ${l.destino === 'novo:peca' ? 'selected' : ''}>➕ Cadastrar como peça nova</option>
           ${l.sug.map(s => `<option value="${s.tipo}:${s.p.id}" ${l.destino === `${s.tipo}:${s.p.id}` ? 'selected' : ''}>Somar em: ${esc(s.p.nome)} (${s.tipo === 'peca' ? 'peça' : 'produto'}, tem ${s.p.qtd})</option>`).join('')}
         </select>
-        <div class="form-row">${field('Quantidade', `<input class="input" type="number" min="0" step="1" data-q="${i}" value="${l.qtd}">`)}${field('Custo un.', `<input class="input" inputmode="decimal" data-c="${i}" value="${moneyInput(l.custo)}">`)}</div>
+        <div class="form-row">${field('Quantidade', `<input class="input" inputmode="decimal" data-q="${i}" value="${fmtQtd(l.qtd)}">`)}${field('Custo un.', `<input class="input" inputmode="decimal" data-c="${i}" value="${moneyInput(l.custo)}">`)}</div>
         ${l.destino.startsWith('novo:') ? field('Preço de venda', `<input class="input" inputmode="decimal" data-p="${i}" placeholder="0,00" value="${l.preco ? moneyInput(l.preco) : ''}">`, { opt: true }) : ''}
       </div>`).join('');
       $$('[data-inc]', el).forEach(c => c.onchange = () => { linhas[c.dataset.inc].incluir = c.checked; desenhar(); });
       $$('[data-dest]', el).forEach(s => s.onchange = () => { linhas[s.dataset.dest].destino = s.value; desenhar(); });
-      $$('[data-q]', el).forEach(x => x.oninput = () => { linhas[x.dataset.q].qtd = Math.max(0, parseInt(x.value) || 0); });
+      $$('[data-q]', el).forEach(x => x.oninput = () => { linhas[x.dataset.q].qtd = Math.max(0, parseNum(x.value)); });
       $$('[data-c]', el).forEach(x => x.oninput = () => { linhas[x.dataset.c].custo = parseMoney(x.value); });
       $$('[data-p]', el).forEach(x => x.oninput = () => { linhas[x.dataset.p].preco = parseMoney(x.value); });
     };
@@ -131,7 +131,7 @@ const NFe = {
       let tipoItem, item;
       if (tipo === 'novo') {
         tipoItem = ref; // produto | peca
-        item = { id: uid(), nome: l.nome, codigo: l.ean || l.codigo, custo: l.custo, preco: l.preco || 0, qtd: 0, minimo: 0, categoria: '', fornecedorId: forn?.id || '', criadoEm: nowISO(), entradaEm: nowISO() };
+        item = { id: uid(), unidade: /^l|lt|litro/i.test(l.unidade || '') ? 'L' : /^ml/i.test(l.unidade || '') ? 'ml' : /^kg/i.test(l.unidade || '') ? 'kg' : /^(m|mt|metro)$/i.test(l.unidade || '') ? 'm' : 'un', nome: l.nome, codigo: l.ean || l.codigo, custo: l.custo, preco: l.preco || 0, qtd: 0, minimo: 0, categoria: '', fornecedorId: forn?.id || '', criadoEm: nowISO(), entradaEm: nowISO() };
         if (tipoItem === 'produto') Object.assign(item, { garantiaDias: 90 });
         (tipoItem === 'peca' ? Store.db.pecas : Store.db.produtos).push(item);
       } else {

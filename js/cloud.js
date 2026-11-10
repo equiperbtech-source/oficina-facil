@@ -2,7 +2,7 @@
    Os dados continuam salvos no aparelho (funciona offline); cada registro alterado
    é enviado para a tabela "itens" e mudanças de outros aparelhos chegam em tempo real. */
 const SYNC_COLS = ['clientes', 'os', 'orcamentos', 'pecas', 'fornecedores', 'movEstoque', 'produtos', 'vendas', 'servicos', 'lancamentos', 'caixas', 'auditoria', 'pedidos',
-  'lotes', 'nfe_entradas', 'followups', 'metas_func', 'pedidos_vitrine'];
+  'lotes', 'nfe_entradas', 'followups', 'metas_func', 'pedidos_vitrine', 'compras'];
 const META_KEYS = ['settings', 'seq'];
 const SNAP_KEY = 'oficina_sync_snap';
 

@@ -395,7 +395,7 @@ ${dono ? `      <div class="card mb" id="cf-loja">
 
       ${Aparencia.cardHTML()}
 
-      ${Cotacao.cardHTML()}
+      ${Parcelas.cardHTML()}
 
       <div class="card mb" id="cf-modulos">
         <h3>${icon('layers', 'sm')} Módulos <span class="gold">do sistema</span></h3>
@@ -518,7 +518,7 @@ ${dono ? `      <div class="card mb" id="cf-loja">
         <button class="btn danger block" onclick="Pages.config.zerar()">${icon('trash')} Apagar todos os dados</button>
       </div>` : ''}`;
     this.topicos(main);
-    Cotacao.cardInit();
+    Parcelas.cardInit();
     const ml = $('#cf-moeda');
     if (ml) ml.onchange = () => { Store.s.moedaBase = ml.value; Store.save(); toast(t('Moeda da oficina salva')); App.refresh(); };
     const il = $('#cf-idioma-loja');

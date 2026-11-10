@@ -4,7 +4,18 @@ const Cotacao = {
   MAX: 3,
   // busca de peça por palavras soltas, em qualquer ordem ("pastilha onix" acha "Pastilha de freio Onix 2019")
   achaPeca(q, p) { const txt = norm([p.nome, p.codigo, p.aplicacao, p.compat, p.categoria].filter(Boolean).join(' ')); return norm(q).split(/\s+/).filter(Boolean).every(w => txt.includes(w)); },
-  fornecedores() { return (Store.s.fornecedoresPeca || []).filter(f => f && f.nome && onlyDigits(f.whats)); },
+  // fornecedores do cadastro (com WhatsApp); os antigos das configurações continuam valendo
+  todos() { return Store.db.fornecedores.filter(f => !f.deleted).sort((a, b) => a.nome.localeCompare(b.nome)); },
+  fornecedores() {
+    const cad = this.todos().filter(f => onlyDigits(f.whatsapp).length >= 8).map(f => ({ id: f.id, nome: f.nome, whats: f.whatsapp }));
+    return cad.length ? cad : (Store.s.fornecedoresPeca || []).filter(f => f && f.nome && onlyDigits(f.whats));
+  },
+  // guarda o pedido/cotação no histórico do fornecedor
+  registrar(f, tipo, itens) {
+    Store.db.compras = Store.db.compras || [];
+    Store.db.compras.push({ id: uid(), fornecedorId: f.id || null, fornecedor: f.nome, tipo: tipo === 'pedido' ? 'pedido' : 'cotacao', itens: itens.map(i => ({ nome: i.nome, qtd: i.qtd || 1, pecaId: i.pecaId || null })), data: nowISO(), por: Store.quem().nome || null });
+    Store.log(tipo === 'pedido' ? 'Pedido de peças' : 'Cotação de peças', `${itens.length} item(ns) · ${f.nome}`); Store.save();
+  },
   // itens: [{ nome, qtd }]
   mensagem(tipo, itens) {
     if (tipo === 'pedido') return itens.length === 1 ? t('Olá, quero pedir {q}x {peca}.', { q: itens[0].qtd || 1, peca: itens[0].nome })
@@ -18,8 +29,8 @@ const Cotacao = {
   abrir(tipo, ctx = {}) {
     const forn = this.fornecedores();
     if (!forn.length) {
-      toast(t('Cadastre até 3 fornecedores em Configurações → Fornecedores de peças'), true);
-      if (Cloud.ehDono()) { closeAllModals(); App.go('config'); setTimeout(() => Pages.config.abrirTopico?.('cf-forn'), 300); }
+      toast(t('Cadastre um fornecedor com WhatsApp em Fornecedores'), true);
+      closeAllModals(); Pages.fornecedor.aba = 'lista'; App.go('fornecedor');
       return;
     }
     const pecas = Store.db.pecas.filter(p => !p.deleted).sort((a, b) => a.nome.localeCompare(b.nome));
@@ -33,7 +44,7 @@ const Cotacao = {
         ${pedido ? field('Quantidade', '<input class="input" id="ct-qtd" type="number" min="1" value="1" style="max-width:120px">') : ''}
         <div class="lbl mt mb">${t('Mensagem')}</div>
         <div class="card" id="ct-msg" style="background:var(--bg-2);font-size:14px" data-no-i18n></div>
-        <div class="section-title mt">${icon('whatsapp', 'sm')} ${pedido ? 'Pedir para' : 'Perguntar para'}</div>
+        <div class="section-title mt">${icon('whatsapp', 'sm')} ${pedido ? 'Pedir para' : 'Perguntar para'} <span class="xs muted">${t('(até 3)')}</span></div>
         <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px">${forn.map((f, i) => `<button type="button" class="btn success" data-ct="${i}">${icon('whatsapp', 'sm')} <span data-no-i18n>${esc(f.nome)}</span></button>`).join('')}</div>`,
       foot: `<button class="btn" data-close>Fechar</button>`,
     });
@@ -60,7 +71,7 @@ const Cotacao = {
       if (!nome) { inp.focus(); return toast(t('Escreva a peça'), true); }
       const f = forn[+b.dataset.ct];
       window.open(waLink(f.whats, this.mensagem(pedido ? 'pedido' : 'preco', [{ nome, qtd: qtd() }])), '_blank');
-      Store.log(pedido ? 'Pedido de peça' : 'Cotação de peça', `${nome} · ${f.nome}`); Store.save();
+      this.registrar(f, pedido ? 'pedido' : 'preco', [{ nome, qtd: qtd() }]);
     });
   },
 
@@ -91,10 +102,10 @@ const Cotacao = {
   },
 };
 
-/* Aba "Pedido fornecedor": monta uma lista de peças e manda para cotar ou pedir pelo WhatsApp.
-   A lista fica guardada neste dispositivo até ser enviada ou limpa. */
+/* Fornecedores: cadastro completo, cotação/pedido pelo WhatsApp (até 3 de uma vez) e histórico de compras
+   (pedidos enviados e notas importadas por XML). Os pedidos ficam em Store.db.compras. */
 Pages.fornecedor = {
-  tipo: 'preco',
+  aba: 'lista', tipo: 'preco', escolhidos: [],
   chave() { return 'oficina_pedido_forn_' + (Cloud.loja?.id || 'local'); },
   lista() { try { return JSON.parse(localStorage.getItem(this.chave()) || '[]'); } catch { return []; } },
   guardar(l) { try { localStorage.setItem(this.chave(), JSON.stringify(l)); } catch {} },
@@ -103,49 +114,101 @@ Pages.fornecedor = {
     if (ex) ex.qtd = (ex.qtd || 1) + (item.qtd || 1); else l.push({ pecaId: item.pecaId || null, nome: item.nome, qtd: item.qtd || 1 });
     this.guardar(l); App.refresh();
   },
+  compras(f) {
+    const ped = (Store.db.compras || []).filter(c => !c.deleted && c.fornecedorId === f.id).map(c => ({ data: c.data, tipo: c.tipo === 'pedido' ? t('Pedido') : t('Cotação'), desc: c.itens.map(i => `${fmtQtd(i.qtd)}x ${i.nome}`).join(', '), valor: null }));
+    const nfs = Store.db.nfe_entradas.filter(n => !n.deleted && (n.fornecedorId === f.id || (f.cnpj && onlyDigits(n.fornecedor?.cnpj || n.cnpj) === onlyDigits(f.cnpj)))).map(n => ({ data: n.importadaEm || n.data, tipo: `NF ${n.numero || ''}`, desc: t('{n} item(ns)', { n: (n.itens || []).length }), valor: n.total }));
+    return [...ped, ...nfs].sort((a, b) => String(b.data).localeCompare(String(a.data)));
+  },
   render(main) {
+    const fs = Cotacao.todos();
+    main.innerHTML = `${pageHead('truck', 'Fornecedores', 'Cadastro, cotação e pedido de peças pelo WhatsApp, com o veículo na mensagem.')}
+      <div class="tabs mb" id="fn-abas" style="display:inline-flex">${[['lista', 'Fornecedores'], ['pedido', 'Cotar / pedir']].map(([k, l]) => `<button data-k="${k}" class="${this.aba === k ? 'on' : ''}">${t(l)}</button>`).join('')}</div>
+      <div id="fn-corpo"></div>`;
+    $$('#fn-abas button').forEach(b => b.onclick = () => { this.aba = b.dataset.k; App.refresh(); });
+    const corpo = $('#fn-corpo');
+    if (this.aba === 'lista') {
+      corpo.innerHTML = `<button class="btn primary block mb" id="fn-novo">${icon('plus')} ${t('Novo fornecedor')}</button>
+        <div class="card pad-0">${fs.map(f => { const n = this.compras(f).length; return `<div class="item" data-fn="${f.id}"><div class="row"><div class="avatar">${esc((f.nome || '?')[0].toUpperCase())}</div>
+          <div class="grow" style="min-width:0"><b data-no-i18n>${esc(f.nome)}</b><div class="small muted ellipsis">${esc([f.vendedor, fmtPhone(f.whatsapp || f.telefone), f.prazo ? t('entrega: {p}', { p: f.prazo }) : ''].filter(Boolean).join(' · '))}</div></div>
+          <span class="pill">${t('{n} compra(s)', { n })}</span></div></div>`; }).join('') || `<div class="empty">${icon('truck')}<div>${t('Nenhum fornecedor cadastrado.')}</div></div>`}</div>`;
+      $('#fn-novo').onclick = () => this.editar();
+      $$('[data-fn]', corpo).forEach(i => i.onclick = () => this.detalhe(i.dataset.fn));
+      return;
+    }
+    this.pedido(corpo);
+  },
+  editar(id) {
+    const f = id ? { ...Store.db.fornecedores.find(x => x.id === id) } : {};
+    openModal({
+      title: id ? t('Editar fornecedor') : t('Novo fornecedor'), icon: 'truck',
+      body: `${field('Nome', `<input class="input" name="nome" value="${esc(f.nome || '')}">`, { req: true })}
+        <div class="form-row">${field('CNPJ', `<input class="input" name="cnpj" inputmode="numeric" value="${esc(f.cnpj || '')}">`, { opt: true })}${field('Vendedor', `<input class="input" name="vendedor" value="${esc(f.vendedor || '')}">`, { opt: true })}</div>
+        <div class="form-row">${field('WhatsApp', `<input class="input" name="whatsapp" type="tel" placeholder="(48) 99999-9999" value="${esc(f.whatsapp ? fmtPhone(f.whatsapp) : '')}">`)}${field('Telefone', `<input class="input" name="telefone" type="tel" value="${esc(f.telefone ? fmtPhone(f.telefone) : '')}">`, { opt: true })}</div>
+        <div class="form-row">${field('E-mail', `<input class="input" name="email" type="email" value="${esc(f.email || '')}">`, { opt: true })}${field('Prazo de entrega', `<input class="input" name="prazo" placeholder="${t('Ex: mesmo dia, 2 dias')}" value="${esc(f.prazo || '')}">`, { opt: true })}</div>
+        ${field('Observações', `<textarea class="input" name="obs">${esc(f.obs || '')}</textarea>`, { opt: true })}`,
+      foot: `${id ? `<button class="btn danger" id="fe-del" title="Excluir">${icon('trash')}</button>` : ''}<button class="btn" data-close>${t('Cancelar')}</button><button class="btn primary" id="fe-ok">${icon('check')} ${t('Salvar')}</button>`,
+      onMount: (el, m) => {
+        const cnpj = $('[name=cnpj]', el); cnpj.oninput = () => { cnpj.value = maskDoc(cnpj.value, 'CNPJ'); };
+        $('#fe-ok', el).onclick = () => {
+          const d = readForm(el); if (!d.nome) return toast('Informe o nome', true);
+          Object.assign(f, d, { whatsapp: onlyDigits(d.whatsapp), telefone: onlyDigits(d.telefone) });
+          if (!id) { f.id = uid(); f.criadoEm = nowISO(); Store.db.fornecedores.push(f); } else Store.db.fornecedores[Store.db.fornecedores.findIndex(x => x.id === id)] = f;
+          Store.save(); m.close(); App.refresh(); toast(t('Fornecedor salvo'));
+        };
+        const d = $('#fe-del', el); if (d) d.onclick = async () => { if (await confirmDialog(t('Excluir o fornecedor {f}?', { f: f.nome }), { danger: true, ok: 'Excluir' })) { Store.db.fornecedores.find(x => x.id === id).deleted = true; Store.save(); m.close(); App.refresh(); } };
+      },
+    });
+  },
+  detalhe(id) {
+    const f = Store.db.fornecedores.find(x => x.id === id); if (!f) return;
+    const h = this.compras(f);
+    openModal({
+      title: f.nome, icon: 'truck', subtitle: f.cnpj ? 'CNPJ ' + f.cnpj : '',
+      body: `<div class="card mb">${[['Vendedor', f.vendedor], ['WhatsApp', fmtPhone(f.whatsapp)], ['Telefone', fmtPhone(f.telefone)], ['E-mail', f.email], ['Prazo de entrega', f.prazo], ['Observações', f.obs]].filter(x => x[1]).map(([k, v]) => `<div class="kv"><span class="k">${t(k)}</span><span class="v" data-no-i18n>${esc(v)}</span></div>`).join('') || `<p class="small muted">${t('Sem dados de contato.')}</p>`}</div>
+        <div class="card pad-0"><div class="list-head"><b>${t('Histórico de compras')}</b></div>${h.map(x => `<div class="cart-line" style="padding:10px 14px"><div class="grow" style="min-width:0"><b>${esc(x.tipo)}</b> <span class="xs muted">${fmtDateTime(x.data)}</span><div class="xs muted ellipsis" data-no-i18n>${esc(x.desc)}</div></div>${x.valor ? `<b>${money(x.valor)}</b>` : ''}</div>`).join('') || `<div class="empty small">${t('Nenhuma compra ainda.')}</div>`}</div>`,
+      foot: `${f.whatsapp ? `<a class="btn success" target="_blank" rel="noopener" href="${waLink(f.whatsapp, t('Olá! Aqui é da {oficina}.', { oficina: Store.s.loja }))}">${icon('whatsapp')} WhatsApp</a>` : ''}<button class="btn" onclick="closeAllModals();Pages.fornecedor.editar('${f.id}')">${icon('edit')} ${t('Editar')}</button><button class="btn" data-close>${t('Fechar')}</button>`,
+    });
+  },
+  // monta a lista de peças e manda para cotar ou pedir (até 3 fornecedores)
+  pedido(box) {
     const forn = Cotacao.fornecedores(), l = this.lista(), pedido = this.tipo === 'pedido';
     const baixo = Store.db.pecas.filter(p => !p.deleted && (p.minimo || 0) > 0 && (p.qtd || 0) <= p.minimo);
-    main.innerHTML = `${pageHead('truck', 'Pedido fornecedor', 'Monte a lista de peças e mande para cotar ou pedir pelo WhatsApp.')}
-      ${forn.length ? '' : `<div class="aviso-plano orange mb">${icon('alert', 'sm')}<span class="grow">${t('Cadastre até 3 fornecedores (nome e WhatsApp) para enviar.')}</span>
-        ${Cloud.ehDono() ? `<button class="btn sm" id="pf-cfg">${t('Cadastrar')}</button>` : ''}</div>`}
+    box.innerHTML = `
+      ${forn.length ? '' : `<div class="aviso-plano orange mb" style="margin:0 0 12px">${icon('alert', 'sm')}<span class="grow">${t('Cadastre um fornecedor com WhatsApp para enviar.')}</span></div>`}
       <div class="card mb">
-        <div class="section-title" style="margin-top:0">${icon('plus', 'sm')} Adicionar peça</div>
+        <div class="section-title" style="margin-top:0">${icon('plus', 'sm')} ${t('Adicionar peça')}</div>
         ${inputIcon('search', 'id="pf-q" autocomplete="off" placeholder="Buscar peça cadastrada..."')}
         <div id="pf-res" class="mt"></div>
-        <div class="row mt" style="gap:8px"><input class="input grow" id="pf-livre" placeholder="${esc(t('Ou escreva a peça'))}"><input class="input" id="pf-qtd" type="number" min="1" value="1" style="width:76px;text-align:center">
-          <button class="btn outline-gold" id="pf-add">${icon('plus')}</button></div>
+        <div class="row mt" style="gap:8px"><input class="input grow" id="pf-livre" placeholder="${esc(t('Ou escreva a peça'))}"><input class="input" id="pf-qtd" inputmode="decimal" value="1" style="max-width:80px" aria-label="${t('Quantidade')}">
+          <button class="btn outline-gold" id="pf-add" title="Adicionar">${icon('plus')}</button></div>
         ${baixo.length ? `<button class="btn sm block mt" id="pf-baixo">${icon('alert', 'sm')} ${t('Adicionar peças com estoque baixo ({n})', { n: baixo.length })}</button>` : ''}
       </div>
       <div class="card mb">
-        <div class="row between"><div class="section-title" style="margin:0">${icon('box', 'sm')} Lista <span class="muted">(${l.length})</span></div>
-          ${l.length ? `<button class="btn sm ghost" id="pf-limpar">${icon('trash', 'sm')} Limpar</button>` : ''}</div>
+        <div class="row between"><div class="section-title" style="margin:0">${icon('box', 'sm')} ${t('Lista')} <span class="muted">(${l.length})</span></div>
+          ${l.length ? `<button class="btn sm ghost" id="pf-limpar">${icon('trash', 'sm')} ${t('Limpar')}</button>` : ''}</div>
         <div class="mt">${l.map((i, k) => `<div class="cart-line"><div class="grow" style="min-width:0"><b data-no-i18n>${esc(i.nome)}</b></div>
-          <div class="qty"><button data-d="-1" data-k="${k}">−</button><span>${i.qtd || 1}</span><button data-d="1" data-k="${k}">+</button></div>
+          <div class="qty"><button data-d="-1" data-k="${k}" aria-label="${t('Menos')}">−</button><span>${fmtQtd(i.qtd || 1)}</span><button data-d="1" data-k="${k}" aria-label="${t('Mais')}">+</button></div>
           <button class="icon-btn" data-rm="${k}" title="Remover">${icon('trash', 'sm')}</button></div>`).join('') || `<p class="small muted" style="margin:0">${t('Nenhuma peça na lista ainda.')}</p>`}</div>
       </div>
-      ${l.length ? `<div class="card mb">
-        <div class="tabs mb">${[['preco', 'Cotar preço'], ['pedido', 'Pedir envio']].map(([k, n]) => `<button data-tp="${k}" class="${this.tipo === k ? 'on' : ''}" style="flex:1">${n}</button>`).join('')}</div>
+      ${l.length && forn.length ? `<div class="card mb">
+        <div class="tabs mb">${[['preco', 'Cotar preço'], ['pedido', 'Fazer pedido']].map(([k, n]) => `<button data-tp="${k}" class="${this.tipo === k ? 'on' : ''}" style="flex:1">${t(n)}</button>`).join('')}</div>
         <div class="lbl mb">${t('Mensagem')}</div>
         <div class="card" style="background:var(--bg-2);white-space:pre-wrap;font-size:14px" data-no-i18n>${esc(Cotacao.mensagem(this.tipo, l))}</div>
-        <div class="section-title mt">${icon('whatsapp', 'sm')} ${pedido ? 'Pedir para' : 'Perguntar para'}</div>
-        <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px">${forn.map((f, i) => `<button class="btn success" data-pf="${i}">${icon('whatsapp', 'sm')} <span data-no-i18n>${esc(f.nome)}</span></button>`).join('') || `<span class="small muted">${t('Nenhum fornecedor cadastrado.')}</span>`}</div>
+        <div class="section-title mt">${icon('whatsapp', 'sm')} ${t(pedido ? 'Pedir para' : 'Perguntar para')} <span class="xs muted">${t('(até 3)')}</span></div>
+        <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px">${forn.map((f, i) => `<button class="btn success" data-pf="${i}">${icon('whatsapp', 'sm')} <span data-no-i18n>${esc(f.nome)}</span></button>`).join('')}</div>
       </div>` : ''}`;
-    const pecas = Store.db.pecas.filter(p => !p.deleted).sort((a, b) => a.nome.localeCompare(b.nome));
     const q = $('#pf-q'), res = $('#pf-res');
     q.oninput = () => {
       const v = q.value.trim(); if (!v) { res.innerHTML = ''; return; }
-      const r = pecas.filter(p => Cotacao.achaPeca(v, p)).slice(0, 8);
-      res.innerHTML = r.length ? `<div class="card pad-0">${r.map(p => `<div class="item" data-pp="${p.id}" style="padding:10px 14px"><b>${esc(p.nome)}</b>${p.codigo ? ` <span class="xs muted">${esc(p.codigo)}</span>` : ''}
-        <div class="xs muted">${p.compat ? esc(p.compat) + ' · ' : ''}${t('estoque')} ${p.qtd || 0}</div></div>`).join('')}</div>` : `<div class="small muted">${t('Nenhuma peça encontrada')}</div>`;
-      $$('[data-pp]', res).forEach(d => d.onclick = () => { const p = Store.peca(d.dataset.pp); this.add({ pecaId: p.id, nome: p.nome + (p.codigo ? ` (${p.codigo})` : ''), qtd: Math.max(1, parseInt($('#pf-qtd').value) || 1) }); });
+      const r = Pecas.buscar(v).slice(0, 8);
+      res.innerHTML = r.length ? `<div class="card pad-0">${r.map(p => `<div class="item" data-pp="${p.id}" style="padding:10px 14px"><b>${esc(p.nome)}</b>${p.codigo ? ` <span class="xs muted">${esc(p.codigo)}</span>` : ''}<div class="xs muted">${p.aplicacao ? esc(p.aplicacao) + ' · ' : ''}${t('estoque')} ${fmtQtd(p.qtd || 0)}</div></div>`).join('')}</div>` : `<div class="small muted">${t('Nenhuma peça encontrada')}</div>`;
+      $$('[data-pp]', res).forEach(d => d.onclick = () => { const p = Store.peca(d.dataset.pp); this.add({ pecaId: p.id, nome: p.nome + (p.codigo ? ` (${p.codigo})` : ''), qtd: Math.max(0.01, parseNum($('#pf-qtd').value) || 1) }); });
     };
-    $('#pf-add').onclick = () => { const n = $('#pf-livre').value.trim(); if (!n) return toast(t('Escolha a peça ou escreva o nome dela'), true); this.add({ nome: n, qtd: Math.max(1, parseInt($('#pf-qtd').value) || 1) }); };
+    $('#pf-add').onclick = () => { const n = $('#pf-livre').value.trim(); if (!n) return toast(t('Escolha a peça ou escreva o nome dela'), true); this.add({ nome: n, qtd: Math.max(0.01, parseNum($('#pf-qtd').value) || 1) }); };
     $('#pf-livre').onkeydown = e => { if (e.key === 'Enter') $('#pf-add').click(); };
     const bx = $('#pf-baixo'); if (bx) bx.onclick = () => { const l2 = this.lista();
       for (const p of baixo) if (!l2.some(i => i.pecaId === p.id)) l2.push({ pecaId: p.id, nome: p.nome + (p.codigo ? ` (${p.codigo})` : ''), qtd: Math.max(1, p.minimo * 2 - (p.qtd || 0)) });
       this.guardar(l2); App.refresh(); };
-    const cfg = $('#pf-cfg'); if (cfg) cfg.onclick = () => { App.go('config'); setTimeout(() => Pages.config.abrirTopico('cf-forn'), 300); };
     const lp = $('#pf-limpar'); if (lp) lp.onclick = () => { this.guardar([]); App.refresh(); };
     $$('[data-d]').forEach(b => b.onclick = () => { const l2 = this.lista(), i = l2[+b.dataset.k]; i.qtd = Math.max(1, (i.qtd || 1) + +b.dataset.d); this.guardar(l2); App.refresh(); });
     $$('[data-rm]').forEach(b => b.onclick = () => { const l2 = this.lista(); l2.splice(+b.dataset.rm, 1); this.guardar(l2); App.refresh(); });
@@ -153,7 +216,7 @@ Pages.fornecedor = {
     $$('[data-pf]').forEach(b => b.onclick = async () => {
       const f = forn[+b.dataset.pf], itens = this.lista();
       window.open(waLink(f.whats, Cotacao.mensagem(this.tipo, itens)), '_blank');
-      Store.log(this.tipo === 'pedido' ? 'Pedido de peças' : 'Cotação de peças', `${itens.length} item(ns) · ${f.nome}`); Store.save();
+      Cotacao.registrar(f, this.tipo, itens);
       if (this.tipo === 'pedido' && await confirmDialog(t('Pedido enviado para {f}. Limpar a lista?', { f: f.nome }), { ok: t('Limpar') })) { this.guardar([]); App.refresh(); }
     });
   },

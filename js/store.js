@@ -117,6 +117,7 @@ function defaultDB() {
     nfe_entradas: [],   // notas de compra importadas por XML (id = chave da NF-e)
     followups: [],      // contatos a fazer com clientes (status, próximo contato, observações)
     metas_func: [],     // metas por funcionário (id = user_id)
+    compras: [],        // cotações e pedidos enviados aos fornecedores
     pedidos_vitrine: [], // pedidos feitos pelo cliente no carrinho da vitrine (retirada na loja)
   };
 }
@@ -366,3 +367,23 @@ const Parcelas = {
     $('select', box).onchange = () => this.campo(box, forma, total, origem);
   },
 };
+// Configurações → Parcelas no crédito (uma tabela para Serviços/OS e outra para o Balcão)
+Object.assign(Parcelas, {
+  cardHTML() {
+    const bloco = (k, titulo) => { const c = this.cfg(k); return `<div class="card mb" style="background:var(--bg-2)"><b>${t(titulo)}</b>
+      <div class="form-row mt">${field('Sem juros até', `<select class="input" name="${k}_sj">${Array.from({ length: 12 }, (_, i) => i + 1).map(n => `<option value="${n}" ${n === c.semJurosAte ? 'selected' : ''}>${n}x</option>`).join('')}</select>`)}${field('Máximo de parcelas', `<select class="input" name="${k}_max">${[1, 2, 3, 4, 5, 6, 10, 12, 18, 21, 24].map(n => `<option value="${n}" ${n === c.max ? 'selected' : ''}>${n}x</option>`).join('')}</select>`)}</div>
+      <div class="lbl mb">${t('Taxa da maquininha por parcela (%)')}</div>
+      <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:6px">${Array.from({ length: c.max }, (_, i) => i + 1).map(n => `<label class="xs muted">${n}x<input class="input" name="${k}_t${n}" inputmode="decimal" value="${String(this.taxa(n, k)).replace('.', ',')}"></label>`).join('')}</div></div>`; };
+    return `<div class="card mb" id="cf-parc"><h3>${icon('card', 'sm')} Parcelas no <span class="gold">crédito</span></h3>
+      <p class="small muted" style="margin-top:0">${t('A taxa de cada parcela entra no lucro real. Serviços (OS) e peças do balcão têm tabelas separadas.')}</p>
+      <form id="cf-parc-f">${bloco('os', 'Serviços (OS)')}${bloco('balcao', 'Peças e produtos (balcão)')}<button class="btn primary block">${icon('check')} ${t('Salvar parcelas')}</button></form></div>`;
+  },
+  cardInit() {
+    const f = $('#cf-parc-f'); if (!f) return;
+    f.onsubmit = e => {
+      e.preventDefault(); const d = readForm(f), out = {};
+      for (const k of ['os', 'balcao']) { const max = parseInt(d[k + '_max'], 10) || 12, taxas = {}; for (let n = 1; n <= max; n++) if (d[`${k}_t${n}`] !== undefined && d[`${k}_t${n}`] !== '') taxas[n] = parseNum(d[`${k}_t${n}`]); out[k] = { semJurosAte: parseInt(d[k + '_sj'], 10) || 1, max, taxas }; }
+      Store.s.parcelas = out; Store.save(); toast(t('Parcelas salvas')); App.refresh();
+    };
+  },
+});
