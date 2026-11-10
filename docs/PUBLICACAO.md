@@ -61,8 +61,63 @@ Authentication**. Como a prévia não tem banco nem dados, não há risco nisso.
 - Cada etapa nova aparece sozinha alguns minutos depois do push. Se o celular mostrar a versão
   antiga, use **Menu → Atualizar o sistema**.
 
-## Parte 2 — Produção (Etapa 10)
+## Parte 2 — Produção (com banco)
 
-Vem no fim: Supabase novo e `TUDO.sql`, variáveis `OFICINA_*` (inclusive a trava
-`OFICINA_CONFIRMO_BANCO_PRODUCAO`), domínio e subdomínio curinga, Kiwify e webhook, Brevo e Pixel,
-e a volta do branch de produção para o branch certo.
+Tempo: ~40 minutos. Faça na ordem. Nenhuma chave vai para o código: tudo fica nas variáveis da Vercel.
+
+### 1. Supabase (o banco)
+1. Em **supabase.com**, crie um projeto novo (região **São Paulo**). Guarde a senha do banco.
+2. **SQL Editor → New query**: cole o conteúdo de `supabase/schema.sql` e rode **uma vez**.
+3. Nova query: cole `supabase/saas/TUDO.sql` e rode. (Pode rodar de novo sem problema.)
+4. Ainda no SQL Editor, cadastre você como **super admin** (troque pelo seu e-mail de login, depois de criar sua conta no app):
+   ```sql
+   insert into public.super_admins(user_id) select id from auth.users where email = 'SEU-EMAIL';
+   ```
+5. **Authentication → Sign In / Providers → Email**: desligue **Confirm email** (o dono entra na hora).
+6. **Authentication → URL Configuration**:
+   - Site URL: `https://app.SEUDOMINIO.com.br`
+   - Redirect URLs: `https://app.SEUDOMINIO.com.br/**` e `https://*.SEUDOMINIO.com.br/**`
+7. **Project Settings → Data API**: copie a **Project URL**. **Project Settings → API Keys**: copie a **publishable key** (a pública) e a **secret key** (a secreta; só vai na Vercel).
+
+### 2. Vercel (o app)
+Em **Settings → Environment Variables** do projeto (marque só **Production**, a não ser que diga outra coisa):
+
+| Variável | Valor |
+|---|---|
+| `OFICINA_SUPABASE_URL` | Project URL (`https://xxxx.supabase.co`) — marque também **Preview** se quiser a prévia com banco |
+| `OFICINA_SUPABASE_ANON_KEY` | publishable key — idem |
+| `OFICINA_CONFIRMO_BANCO_PRODUCAO` | **a mesma** Project URL (trava contra banco errado) |
+| `OFICINA_DOMINIO` | `seudominio.com.br` |
+| `SUPABASE_URL` | Project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | secret key (**só aqui, nunca no chat ou no código**) |
+| `SITE_URL` | `https://app.seudominio.com.br` |
+| `KIWIFY_WEBHOOK_TOKEN` | token do webhook da Kiwify (passo 4) |
+| `BREVO_API_KEY` e `BREVO_REMETENTE` | chave do Brevo e o e-mail remetente verificado (passo 5) |
+| `PLATAFORMA_NOME` | `Oficina Simples` |
+
+Depois: **Settings → Environments → Production → Branch Tracking**: volte o branch de produção para o branch que você quer publicar (hoje, `claude/new-session-lji9tt`) e faça **Redeploy**.
+
+### 3. Domínio e subdomínio de cada oficina
+1. Vercel → **Settings → Domains**: adicione `app.seudominio.com.br` e o curinga `*.seudominio.com.br`.
+2. No seu registro de domínio (Registro.br, Cloudflare...), siga o que a Vercel mostrar. O curinga exige usar os **nameservers da Vercel** (ns1/ns2.vercel-dns.com).
+3. Cada oficina escolhe o endereço curto em Configurações → Aparência (ex.: `joao.seudominio.com.br`).
+
+### 4. Kiwify (pagamento)
+1. Crie os produtos **Essencial (R$ 49,99/mês)** e **Pro (R$ 89,99/mês)** como assinatura.
+2. **Webhooks**: URL `https://app.seudominio.com.br/api/webhooks/kiwify`, todos os eventos de compra/assinatura. Copie o **token** para `KIWIFY_WEBHOOK_TOKEN`.
+3. No app, entre em `/admin` → **Produtos**: ligue cada produto da Kiwify ao plano certo e cole o link de checkout.
+4. Faça uma compra de teste com cupom de 100% e confira em `/admin → Pagamentos`.
+
+### 5. Brevo (e-mails)
+1. Crie a conta em **brevo.com**, verifique o domínio do remetente (ex.: `contato@seudominio.com.br`).
+2. **SMTP & API → API Keys**: gere a chave e cole em `BREVO_API_KEY`; o remetente em `BREVO_REMETENTE`.
+3. Em **Brevo → Segurança → IPs autorizados**, desligue o bloqueio por IP (a Vercel muda de IP).
+
+### 6. Meta Pixel e Clarity (opcional)
+Ficam na landing (Etapa 9), por configuração, vazios por padrão.
+
+### 7. Conferência rápida (5 min)
+1. Abra `https://app.seudominio.com.br`, crie sua conta e a oficina ("Que veículos você atende?").
+2. Rode o `insert` do super admin (passo 1.4) e abra `/admin`.
+3. Crie um cliente com uma placa, abra uma OS pelos 4 passos, copie o link do cliente e abra no celular.
+4. Gere o PDF da OS e o termo de garantia.
